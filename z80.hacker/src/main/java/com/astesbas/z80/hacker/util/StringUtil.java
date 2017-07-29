@@ -34,6 +34,38 @@ public class StringUtil {
     }   
     
     /**
+     * Clean the given text line: removes any leading and trailing whitespace and comments.
+     * This "cleaning method" implementation is very simple and may not cover every valid case.
+     * 
+     * @param text the text string to be cleaned
+     * @param comment the comment char
+     * @return the cleaned string
+     */
+    public static String clean(String text, char comment) {
+        
+        int index = 0;
+        int quotes = 0;
+        int singleQuotes = 0;
+        
+        for(; index < text.length(); index++) {
+            
+            if(text.charAt(index) == '"' && (singleQuotes % 2 == 0)) {
+                quotes++;
+            } else if(text.charAt(index) == '\'' && (quotes % 2 == 0)) {
+                singleQuotes++;
+            } else if(text.charAt(index) == comment) {
+                
+                // verify if there is a comment char outside any cuotation
+                if((quotes % 2 == 0) && (singleQuotes % 2 == 0)) {
+                    break;
+                }
+            }
+        }
+        
+        return StringUtil.clean(text.substring(0, index));
+    }   
+    
+    /**
      * Cleanup the given string text by replacing tabs by spaces and removing any leading and trailing spaces.
      * @param text the input text to be "cleaned"
      * @return the "cleaned "text

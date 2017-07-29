@@ -61,8 +61,8 @@ public class ConfigFileReader {
                 lineNumber++;
                 
                 // discard comment lines and empty lines
-                line = StringUtil.clean(line);
-                if (line.isEmpty() || line.startsWith("#")) {
+                line = StringUtil.clean(line, '#');
+                if (line.isEmpty()) {
                     continue;
                 }   
                 
@@ -116,24 +116,6 @@ public class ConfigFileReader {
         List<String> mappedList = this.multimap.get(key.toString());
         return (mappedList == null) ? new ArrayList<>():mappedList;
     }   
-    
-//    /**
-//     * Return the first mapped value for the given key.
-//     * @param key the key
-//     * @return the first value associated to the given key
-//     */
-//    public Optional<String> getFirst(Object key) {
-//        return Optional.ofNullable(this.multimap.getFirst(key.toString()));
-//    }   
-//    
-//    /**
-//     * Return the last mapped value for the given key.
-//     * @param key the key
-//     * @return the last value associated to the given key
-//     */
-//    public Optional<String> getLast(Object key) {
-//        return Optional.ofNullable(this.multimap.getLast(key.toString()));
-//    }   
     
     /**
      * Return the value as a string for the given key.
