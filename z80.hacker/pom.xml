@@ -31,7 +31,7 @@
 	<build>
 	    
 	    <defaultGoal>package</defaultGoal>
-        <finalName>${artifactId}-${version}</finalName>
+        <finalName>${project.artifactId}-${project.version}</finalName>
         
         <resources>
             <resource>
@@ -65,13 +65,13 @@
 					</archive>
 				</configuration>
 			</plugin>
-			<plugin>
+			<!-- <plugin>
 				<artifactId>maven-resources-plugin</artifactId>
 				<version>2.4</version>
 				<configuration>
 					<encoding>${project-encoding}</encoding>
 				</configuration>
-			</plugin>
+			</plugin>-->
 
 			<plugin>
 				<artifactId>maven-resources-plugin</artifactId>

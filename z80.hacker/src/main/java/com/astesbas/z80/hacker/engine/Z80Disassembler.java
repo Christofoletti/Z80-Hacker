@@ -90,11 +90,6 @@ public class Z80Disassembler {
         for(OpCodePrefix prefix:OpCodePrefix.values()) {
             this.opCodesMap.put(prefix, new ArrayList<>());
         }   
-        
-//        // set the default file names
-//        this.setOutputFile("./output.asm");
-//        this.setListFile("./output.lst");
-//        this.setLogFile("./output.log");
     }   
     
     /**
@@ -103,7 +98,6 @@ public class Z80Disassembler {
      * @param address the address to be mapped to the given label
      */
     public void mapLabel(String label, Integer address) {
-        //SystemOut.vprintf("Mapping label: %s 0x%04X%n", label, address);
         this.labelsMap.put(address, label);
     }   
     
@@ -113,7 +107,6 @@ public class Z80Disassembler {
      * @param value the value to be mapped to the given equ label
      */
     public void mapEqu(String label, String value) {
-        //SystemOut.vprintf("Mapping equ: %s %s%n", label, value);
         this.equsMap.put(label, value);
     }   
     
@@ -122,13 +115,7 @@ public class Z80Disassembler {
      * @param outputFileName the output file name
      */
     public void setOutputFile(String outputFileName) {
-        try {
-            this.outputPath = Paths.get(outputFileName);
-            Files.deleteIfExists(this.outputPath);
-        } catch (IOException | InvalidPathException exception) {
-            System.err.printf("%nError setting output file: \"%s\"\n\t%s%n", outputFileName, exception.getMessage());
-            System.exit(-1);
-        }   
+        this.outputPath = this.getFilePath(outputFileName);
     }   
     
     /**
@@ -136,13 +123,7 @@ public class Z80Disassembler {
      * @param listFileName the listFile name
      */
     public void setListFile(String listFileName) {
-        try {
-            this.listPath = Paths.get(listFileName);
-            Files.deleteIfExists(this.listPath);
-        } catch (IOException | InvalidPathException exception) {
-            System.err.printf("%nError setting list file: \"%s\"\n\t%s%n", listFileName, exception.getMessage());
-            System.exit(-1);
-        }   
+        this.listPath = this.getFilePath(listFileName);
     }   
     
     /**
@@ -150,13 +131,24 @@ public class Z80Disassembler {
      * @param logFileName the logFile name to set
      */
     public void setLogFile(String logFileName) {
+        this.logPath = this.getFilePath(logFileName);
+    }   
+    
+    /**
+     * Get the Path for the given file name.
+     * @param fileName the file
+     * @return the path for the file name
+     */
+    public Path getFilePath(String fileName) {
+        Path path = null;
         try {
-            this.logPath = Paths.get(logFileName);
-            Files.deleteIfExists(this.logPath);
+            path = Paths.get(fileName);
+            Files.deleteIfExists(path);
         } catch (IOException | InvalidPathException exception) {
-            System.err.printf("%nError setting log file: \"%s\"\n\t%s%n", logFileName, exception.getMessage());
+            System.err.printf("%nError getting path to file: \"%s\"\n\t%s%n", fileName, exception.getMessage());
             System.exit(-1);
         }   
+        return path;
     }   
     
     /**
@@ -254,6 +246,7 @@ public class Z80Disassembler {
         try (BufferedWriter writer = Files.newBufferedWriter(this.logPath, CREATE, APPEND)) {
             String text = String.format(format, args);
             writer.write(text, 0, text.length());
+            SystemOut.vprint("[LOG] "+text);
         } catch (IOException ioException) {
             System.err.format("IOException: %s%n", ioException);
             System.exit(-1);

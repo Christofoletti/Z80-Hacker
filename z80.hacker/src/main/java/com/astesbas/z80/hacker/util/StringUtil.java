@@ -36,33 +36,39 @@ public class StringUtil {
     /**
      * Clean the given text line: removes any leading and trailing whitespace and comments.
      * This "cleaning method" implementation is very simple and may not cover every valid case.
-     * 
+     * This method removes all commented text (if applicable).
+     *  
      * @param text the text string to be cleaned
      * @param comment the comment char
      * @return the cleaned string
      */
     public static String clean(String text, char comment) {
         
-        int index = 0;
-        int quotes = 0;
-        int singleQuotes = 0;
-        
-        for(; index < text.length(); index++) {
+        // verify if the given text contains at least one comment char
+        if(text.indexOf(comment) >= 0) {
             
-            if(text.charAt(index) == '"' && (singleQuotes % 2 == 0)) {
-                quotes++;
-            } else if(text.charAt(index) == '\'' && (quotes % 2 == 0)) {
-                singleQuotes++;
-            } else if(text.charAt(index) == comment) {
-                
-                // verify if there is a comment char outside any cuotation
-                if((quotes % 2 == 0) && (singleQuotes % 2 == 0)) {
-                    break;
-                }
-            }
-        }
+            // flags to detect quotation in the text
+            boolean insideQuote = false;
+            boolean insideSingleQuote = false;
+            
+            // search the string for a comment char
+            for(int index = 0; index < text.length(); index++) {
+                char currentChar = text.charAt(index);
+                if(!insideSingleQuote && currentChar == '"') {
+                    insideQuote ^= true;
+                } else if(!insideQuote && currentChar == '\'') {
+                    insideSingleQuote ^= true;
+                } else if(currentChar == comment) {
+                    // verify if the comment char outside any quotation
+                    if(!insideQuote && !insideSingleQuote) {
+                        return StringUtil.clean(text.substring(0, index));
+                    }   
+                }   
+            }   
+        }   
         
-        return StringUtil.clean(text.substring(0, index));
+        return StringUtil.clean(text);
+        
     }   
     
     /**

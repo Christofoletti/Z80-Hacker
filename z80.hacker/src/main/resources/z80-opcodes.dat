@@ -1,5 +1,5 @@
 ; Z80 opcodes and mnemonics list - Version 0.2
-; Note: include all documented and undocumented z80:instructions
+; Note: include all documented and undocumented z80 instructions
 ; Copyright Objectware Br 2015
 ; 
 ; Reference: The Undocumented Z80:Documented - Version 0.91, 18th September 2005
