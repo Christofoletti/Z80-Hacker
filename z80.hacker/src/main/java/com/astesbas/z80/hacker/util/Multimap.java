@@ -1,11 +1,9 @@
 package com.astesbas.z80.hacker.util;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 
 /**
- * Multimap simple implementation.
+ * A simple Multimap implementation.
  * The "get() type" methods implemented in this class does not return optional values to be consistent with
  * the get() method from HashMap implementation. These methods returns null values instead of Optional.empty()
  * for keys not present in the map.
@@ -14,25 +12,27 @@ import java.util.List;
  *         luciano@christofoletti.com.br
  * @since 25/06/2017
  */
-public class Multimap<K, V> extends HashMap<K, List<V>> {
+public class MultiMap<K, V> extends java.util.HashMap<K, List<V>> {
     
     /** Serial UID */
     private static final long serialVersionUID = -6057366665818249058L;
     
     /**
      * Maps a value to a given key (not thread safe).
+     * 
      * @param key the key to map the value
      * @param value the value
      */
     public V map(K key, V value) {
-        List<V> list = super.computeIfAbsent(key, v -> new ArrayList<>());
+        List<V> list = super.computeIfAbsent(key, v -> new java.util.ArrayList<>());
         return list.add(value) ? value:null;
     }   
     
     /**
      * Returns the single value mapped to the given key. This method is intended to be used for keys
      * that are expected to have only one mapped value.
-     * Note: if there is more than one values mapped to the given key, an IllegalAccessException is thrown. 
+     * Note: if there is more than one values mapped to the given key, an IllegalAccessException is thrown.
+     * 
      * @param key the key
      * @return the unique value mapped to the given key or null if the key is not present in the map
      * @throws IllegalAccessException if there is more than one value mapped to the given key
@@ -46,9 +46,7 @@ public class Multimap<K, V> extends HashMap<K, List<V>> {
             return values.get(0);
         }   
         
-        throw new IllegalAccessException(
-            String.format("There is more than one value mapped to key %s", key)
-        );
+        throw new IllegalAccessException(String.format("There is more than one value mapped to key %s", key));
     }   
     
     /**

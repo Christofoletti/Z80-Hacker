@@ -1,6 +1,6 @@
 package com.astesbas.z80.hacker.util;
 
-import static com.astesbas.z80.hacker.util.ConfigFileReader.ConfigKey.*;
+import static com.astesbas.z80.hacker.util.ConfigFileProperties.ConfigKey.*;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -44,7 +44,7 @@ public class ProjectFileManagerTest extends TestCase {
             throws URISyntaxException, IllegalArgumentException, IOException, IllegalAccessException {
         
         // the project config file manager
-        ConfigFileReader manager = new ConfigFileReader();
+        ConfigFileProperties manager = new ConfigFileProperties();
         
         // get the default config file resource from classpath
         java.net.URL filePath = manager.getClass().getClassLoader().getResource("default.cfg");

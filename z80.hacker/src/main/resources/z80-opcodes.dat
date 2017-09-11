@@ -1,10 +1,13 @@
-; Z80 opcodes and mnemonics list - Version 0.2
-; Note: include all documented and undocumented z80 instructions
+; Z80 opcodes and mnemonics list - Version 0.3
+; Note: include all documented and undocumented z80:instructions
 ; Copyright Objectware Br 2015
 ; 
-; Reference: The Undocumented Z80:Documented - Version 0.91, 18th September 2005
+; References:
+; [1] The Undocumented Z80:Documented - Version 0.91, 18th September 2005
+; [2] http://www.z80.info/decoding.htm
 ; 
 
+; Z80 Op codes list
 00:NOP
 01####:LD BC,####
 02:LD (BC),A
@@ -886,7 +889,6 @@ ED6D:RETN
 ED6E:IM 0
 ED6F:RLD
 ED70:IN F,(C)
-ED70:IN (C)
 ED71:OUT (C),0
 ED72:SBC HL,SP
 ED73####:LD (####),SP
@@ -1227,46 +1229,46 @@ FDCB%%D4:SET 2,(IY+%%),H
 FDCB%%D5:SET 2,(IY+%%),L
 FDCB%%D6:SET 2,(IY+%%)
 FDCB%%D7:SET 2,(IY+%%),A
-FDCB%%D8:SET 3,(IY+d),B
-FDCB%%D9:SET 3,(IY+d),C
-FDCB%%DA:SET 3,(IY+d),D
-FDCB%%DB:SET 3,(IY+d),E
-FDCB%%DC:SET 3,(IY+d),H
-FDCB%%DD:SET 3,(IY+d),L
-FDCB%%DE:SET 3,(IY+d)
-FDCB%%DF:SET 3,(IY+d),A
-FDCB%%E0:SET 4,(IY+d),B
-FDCB%%E1:SET 4,(IY+d),C
-FDCB%%E2:SET 4,(IY+d),D
-FDCB%%E3:SET 4,(IY+d),E
-FDCB%%E4:SET 4,(IY+d),H
-FDCB%%E5:SET 4,(IY+d),L
-FDCB%%E6:SET 4,(IY+d)
-FDCB%%E7:SET 4,(IY+d),A
-FDCB%%E8:SET 5,(IY+d),B
-FDCB%%E9:SET 5,(IY+d),C
-FDCB%%EA:SET 5,(IY+d),D
-FDCB%%EB:SET 5,(IY+d),E
-FDCB%%EC:SET 5,(IY+d),H
-FDCB%%ED:SET 5,(IY+d),L
-FDCB%%EE:SET 5,(IY+d)
-FDCB%%EF:SET 5,(IY+d),A
-FDCB%%F0:SET 6,(IY+d),B
-FDCB%%F1:SET 6,(IY+d),C
-FDCB%%F2:SET 6,(IY+d),D
-FDCB%%F3:SET 6,(IY+d),E
-FDCB%%F4:SET 6,(IY+d),H
-FDCB%%F5:SET 6,(IY+d),L
-FDCB%%F6:SET 6,(IY+d)
-FDCB%%F7:SET 6,(IY+d),A
-FDCB%%F8:SET 7,(IY+d),B
-FDCB%%F9:SET 7,(IY+d),C
-FDCB%%FA:SET 7,(IY+d),D
-FDCB%%FB:SET 7,(IY+d),E
-FDCB%%FC:SET 7,(IY+d),H
-FDCB%%FD:SET 7,(IY+d),L
-FDCB%%FE:SET 7,(IY+d)
-FDCB%%FF:SET 7,(IY+d),A
+FDCB%%D8:SET 3,(IY+%%),B
+FDCB%%D9:SET 3,(IY+%%),C
+FDCB%%DA:SET 3,(IY+%%),D
+FDCB%%DB:SET 3,(IY+%%),E
+FDCB%%DC:SET 3,(IY+%%),H
+FDCB%%DD:SET 3,(IY+%%),L
+FDCB%%DE:SET 3,(IY+%%)
+FDCB%%DF:SET 3,(IY+%%),A
+FDCB%%E0:SET 4,(IY+%%),B
+FDCB%%E1:SET 4,(IY+%%),C
+FDCB%%E2:SET 4,(IY+%%),D
+FDCB%%E3:SET 4,(IY+%%),E
+FDCB%%E4:SET 4,(IY+%%),H
+FDCB%%E5:SET 4,(IY+%%),L
+FDCB%%E6:SET 4,(IY+%%)
+FDCB%%E7:SET 4,(IY+%%),A
+FDCB%%E8:SET 5,(IY+%%),B
+FDCB%%E9:SET 5,(IY+%%),C
+FDCB%%EA:SET 5,(IY+%%),D
+FDCB%%EB:SET 5,(IY+%%),E
+FDCB%%EC:SET 5,(IY+%%),H
+FDCB%%ED:SET 5,(IY+%%),L
+FDCB%%EE:SET 5,(IY+%%)
+FDCB%%EF:SET 5,(IY+%%),A
+FDCB%%F0:SET 6,(IY+%%),B
+FDCB%%F1:SET 6,(IY+%%),C
+FDCB%%F2:SET 6,(IY+%%),D
+FDCB%%F3:SET 6,(IY+%%),E
+FDCB%%F4:SET 6,(IY+%%),H
+FDCB%%F5:SET 6,(IY+%%),L
+FDCB%%F6:SET 6,(IY+%%)
+FDCB%%F7:SET 6,(IY+%%),A
+FDCB%%F8:SET 7,(IY+%%),B
+FDCB%%F9:SET 7,(IY+%%),C
+FDCB%%FA:SET 7,(IY+%%),D
+FDCB%%FB:SET 7,(IY+%%),E
+FDCB%%FC:SET 7,(IY+%%),H
+FDCB%%FD:SET 7,(IY+%%),L
+FDCB%%FE:SET 7,(IY+%%)
+FDCB%%FF:SET 7,(IY+%%),A
 FDE1:POP IY
 FDE3:EX (SP),IY
 FDE5:PUSH IY

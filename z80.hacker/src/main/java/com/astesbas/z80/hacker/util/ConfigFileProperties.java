@@ -3,14 +3,11 @@
  */
 package com.astesbas.z80.hacker.util;
 
-import java.io.FileReader;
-import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 /**
- * Config file reader and parser.
+ * Configuration properties file reader and parser.
  * 
  * @author Luciano M. Christofoletti
  *         luciano@christofoletti.com.br
@@ -18,18 +15,18 @@ import java.util.Optional;
  * @version 1.0
  * @since 24/jun/2017
  */
-public class ConfigFileReader {
+public class ConfigFileProperties extends MultiMap<String, String> {
+    
+    /** Serial UID version */
+    private static final long serialVersionUID = -8912161132002131418L;
     
     /** The predefined keys for the configuration file */
     public static enum ConfigKey {
         BINARY_FILE, BINARY_START, BINARY_END,
-        OUTPUT_FILE, OBJECT_FILE, LOG_FILE,
-        DB_ALIGN, TAB_SIZE, AUTO_DJNZ_LABELS, AUTO_JR_LABELS, AUTO_JP_LABELS, AUTO_CALL_LABELS,
+        OUTPUT_FILE, LIST_FILE, LOG_FILE,
+        DB_ALIGN, TAB_SIZE, NEAR_LABEL_PREFIX, FAR_LABEL_PREFIX,
         LOW_MEM, HIGH_MEM, START_OFF, LABEL, EQU;
     }   
-    
-    /** Map of keys/values read from file*/
-    private Multimap<String, String> multimap = new Multimap<>();
     
     /**
      * Loads the parameters from file.
@@ -46,12 +43,12 @@ public class ConfigFileReader {
         
         // the current line number (used for error messages)
         int lineNumber = 0;
-        this.multimap.clear();
+        this.clear();
         
         SystemOut.vprintln("Reading parameters from project configuration file:");
         
         // FileReader used to read the text file
-        FileReader fileReader = new FileReader(parametersFile);
+        java.io.FileReader fileReader = new java.io.FileReader(parametersFile);
         
         try (java.io.BufferedReader bufferedReader = new java.io.BufferedReader(fileReader)) {
             
@@ -60,7 +57,7 @@ public class ConfigFileReader {
                 // update the line number counter
                 lineNumber++;
                 
-                // discard comment lines and empty lines
+                // discard comments and empty lines
                 line = StringUtil.clean(line, '#');
                 if (line.isEmpty()) {
                     continue;
@@ -75,7 +72,7 @@ public class ConfigFileReader {
                     String value = lineSplit[1].trim();
                     
                     // put the key and value into the map
-                    this.multimap.map(key, value);
+                    this.map(key, value);
                     SystemOut.vprintf("%s: [%s]%n", key, value);
                     
                 } else {
@@ -92,7 +89,7 @@ public class ConfigFileReader {
      * @return the number of keys in the multimap
      */
     public int getKeysCount() {
-        return this.multimap.size();
+        return this.size();
     }   
     
     /**
@@ -100,7 +97,7 @@ public class ConfigFileReader {
      * @return the number of values for the given key
      */
     public int getCount(Object key) {
-        List<String> values = this.multimap.get(key.toString());
+        List<String> values = this.get(key.toString());
         return (values != null) ? values.size():0;
     }   
     
@@ -112,9 +109,9 @@ public class ConfigFileReader {
      * @param key the key
      * @return the list of values associated to the given key
      */
-    public List<String> get(Object key) {
-        List<String> mappedList = this.multimap.get(key.toString());
-        return (mappedList == null) ? new ArrayList<>():mappedList;
+    public List<String> getListOf(Object key) {
+        List<String> mappedList = super.get(key.toString());
+        return (mappedList == null) ? new java.util.ArrayList<>():mappedList;
     }   
     
     /**
@@ -127,7 +124,7 @@ public class ConfigFileReader {
      * @throws IllegalAccessException if there is more than one mapped value for the given key
      */
     public Optional<String> getString(Object key) throws IllegalAccessException {
-        String value = this.multimap.getSingle(key.toString());
+        String value = this.getSingle(key.toString());
         return Optional.ofNullable(value);
     }   
     
@@ -140,7 +137,7 @@ public class ConfigFileReader {
      * @throws IllegalAccessException if there is more than one mapped value for the given key
      */
     public Optional<Integer> getInteger(Object key) throws IllegalAccessException, NumberFormatException {
-        String value = this.multimap.getSingle(key.toString());
+        String value = this.getSingle(key.toString());
         if(value instanceof String) {
             return Optional.of(Integer.valueOf(value));
         }   
@@ -156,7 +153,7 @@ public class ConfigFileReader {
      * @throws IllegalAccessException if there is more than one mapped value for the given key
      */
     public Optional<Integer> getAddress(Object key) throws IllegalAccessException, NumberFormatException {
-        String value = this.multimap.getSingle(key.toString());
+        String value = this.getSingle(key.toString());
         if(value instanceof String) {
             return Optional.of(Integer.decode(value));
         }   
@@ -172,7 +169,7 @@ public class ConfigFileReader {
      * @throws IllegalAccessException if there is more than one mapped value for the given key
      */
     public Optional<Boolean> getBoolean(Object key) throws IllegalAccessException {
-        String value = this.multimap.getSingle(key.toString());
+        String value = this.getSingle(key.toString());
         if(value instanceof String) {
             return Optional.of(Boolean.valueOf(value));
         }   

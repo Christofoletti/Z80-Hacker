@@ -3,6 +3,9 @@ package com.astesbas.z80.hacker.domain;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Optional;
+
+import com.astesbas.z80.hacker.util.SystemOut;
 
 /**
  * 8-bit/64Kb memory emulation. This is a very simplified representation of memory.
@@ -34,6 +37,9 @@ public class Memory {
     /** The current position for getting a byte from byte array */
     private int pointer = 0;
     
+    /** The binary file name (set when the binary data is read from a file) */
+    private Optional<String> binaryFileName = Optional.empty();
+    
     /**
      * Constructor: initializes all memory positions with default byte value.
      */
@@ -57,14 +63,24 @@ public class Memory {
     }
     
     /**
-     * Get byte from given address in memory.
-     * Note: the address parameter is 
+     * Return byte from given address in memory.
+     * Note: the address parameter is trunked to a 16-bit address before getting the byte from memory.
      * 
      * @param address the address of memory
      * @return the byte in the given address
      */
     public byte get(int address) {
         return this.data[address & 0xFFFF];
+    }   
+    
+    /**
+     * Return byte from current pointer address plus byte displacement in memory.
+     * Note: the resulting address may be trunked at 0xFFFF before getting the byte from memory.
+     * @param displacement
+     * @return
+     */
+    public byte get(byte displacement) {
+        return this.data[(this.pointer + displacement) & 0xFFFF];
     }   
     
     /**
@@ -126,7 +142,7 @@ public class Memory {
     }   
     
     /**
-     * Increment the current pointer address by a given amount
+     * Increment the current pointer address by a given amount.
      * @param increment the increment count
      */
     public void incrementPointer(int amount) {
@@ -134,9 +150,26 @@ public class Memory {
     }   
     
     /**
+     * Increment the current pointer address by one position.
+     */
+    public void incrementPointer() {
+        this.setPointer(this.pointer + 1);
+    }   
+    
+    /**
+     * @return the binaryFileName
+     */
+    public Optional<String> getBinaryFileName() {
+        return this.binaryFileName;
+    }   
+    
+    /**
      * Load data from binary file. The start address is the address where the
      * first byte of the binary file will be placed. The end address is the last
-     * position in memory to be filled with the binary data
+     * position in memory to be filled with the binary data. If the binary file
+     * is greater than (end-start) bytes, then the file is truncated.
+     * If the file is smaller than (end-start) bytes, the memory is filled from
+     * start to start+file_size.
      * 
      * @param binaryFile the binary file
      * @param start address where the first byte of the binary file will be placed
@@ -154,18 +187,23 @@ public class Memory {
         if(start < 0 || start > END_ADDRESS) {
             throw new IllegalArgumentException(
                 String.format("Start address of binary file out of range: 0x%X", start)
-            );
+            );  
         }   
         
         // validate the end address parameter
         if(start > end) {
             throw new IllegalArgumentException(
                 String.format("End address of binary file out of range: 0x%X", end)
-            );
+            );  
         }   
         
         // evaluate the length of data to be stored in memory
         int lenght = Math.min(end, END_ADDRESS) - start + 1;
+        if(start + fileSize < lenght) {
+            lenght = start + fileSize;
+        }   
+        
+        SystemOut.vprintf("Reading binary file: %s...", binaryFile.getName());
         
         // read binary file data
         try (java.io.DataInputStream dis = new java.io.DataInputStream(new java.io.FileInputStream(binaryFile))) {
@@ -177,8 +215,14 @@ public class Memory {
             System.arraycopy(binaryData, 0, this.data, start, lenght);
             
         } catch (IOException ioException) {
-           throw ioException;
+            SystemOut.vprintf("Error!%n");
+            throw ioException;
         }   
+        
+        // store the binary file name
+        this.binaryFileName = Optional.of(binaryFile.getName());
+        
+        SystemOut.vprintf("Ok%n");
     }   
     
     /**

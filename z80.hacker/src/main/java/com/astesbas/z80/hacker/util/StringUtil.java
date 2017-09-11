@@ -1,5 +1,7 @@
 package com.astesbas.z80.hacker.util;
 
+import java.util.Objects;
+
 /**
  * General string utilities.
  * 
@@ -11,15 +13,26 @@ package com.astesbas.z80.hacker.util;
  */
 public class StringUtil {
     
+    /** The hexadecimal value representation format */
+    private static String hexValueFormat = "0%sH";
+    
     /** Avoid instantiation of this class */
     private StringUtil() {};
     
     /**
+     * Sets the hexadecimal format for byte/word data.
+     * @param hexValueFormat the hexadecimal format to set
+     */
+    public static void setHexValueFormat(String hexValueFormat) {
+        StringUtil.hexValueFormat = Objects.requireNonNull(hexValueFormat);
+    }   
+    
+    /**
      * Splits a string into two strings breaking the original string at the point
      * of the first occurrence of the delimiter. If the delimiter string is not present
-     * in the string, then an empty string array is returned.
+     * in the parameter string, then an empty string array is returned.
      * 
-     * @param string the input string to be splited in two strings
+     * @param string the input string to be splitted in two strings
      * @param delimiter the delimiter string used as separator
      * @return an array containing the two strings resulting from split  
      */
@@ -73,10 +86,74 @@ public class StringUtil {
     
     /**
      * Cleanup the given string text by replacing tabs by spaces and removing any leading and trailing spaces.
+     * 
      * @param text the input text to be "cleaned"
      * @return the "cleaned "text
      */
     public static String clean(String text) {
         return text.replace('\t', ' ').trim();
+    }   
+    
+    /**
+     * Convert an array of bytes to a hexadecimal string.
+     * Example: 
+     *     input:  byte[] {01, AA, BB}
+     *     output: String "01AABB"
+     * 
+     * @param bytes array of bytes
+     * @param separator string to be inserted between bytes
+     * @return String representation of the byte array in hexadecimal format.
+     */
+    public static String bytesToHex(byte[] bytes, String separator) {
+        StringBuilder sb = new StringBuilder();
+        for(byte b:bytes) {
+            sb.append(String.format("%02X", b)).append(separator);
+        }   
+        return sb.toString();
+    }   
+    
+    /**
+     * Convert an array of bytes to a hexadecimal string.
+     * Example: 
+     *     input:  byte[] {01, AA, BB}
+     *     output: String "01AABB"
+     * 
+     * @param bytes array of bytes
+     * @return String representation of the byte array in hexadecimal format.
+     */
+    public static String bytesToHex(byte[] bytes) {
+        return StringUtil.bytesToHex(bytes, "");
+    }   
+    
+    /**
+     * Converts a byte into a string representation in hexadecimal.
+     * 
+     * @param value the byte value
+     * @return the string representation of the byte value in hexadecimal
+     */
+    public static String byteToHexString(byte value) {
+        return StringUtil.intToHexString(value & 0xFF);
+    }   
+    
+    /**
+     * Converts two bytes (LSB and MSB) into a string representation in hexadecimal (word).
+     * 
+     * @param lsb least significant byte
+     * @param msb most significant byte
+     * @return the string representation of the word value in hexadecimal
+     */
+    public static String wordToHexString(byte lsb, byte msb) {
+        return StringUtil.intToHexString((lsb & 0xFF) | ((msb << 8) & 0xFFFF));
+    }   
+    
+    /**
+     * Converts an integer into a string representation in hexadecimal.
+     * 
+     * @param value the byte value
+     * @return the string representation of the word value in hexadecimal
+     */
+    public static String intToHexString(int value) {
+        String byteString = String.format("%X", value).replaceFirst("^0*", "");
+        return String.format(StringUtil.hexValueFormat, byteString);
     }   
 }   

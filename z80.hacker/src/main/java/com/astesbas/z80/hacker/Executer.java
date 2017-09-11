@@ -1,18 +1,16 @@
 package com.astesbas.z80.hacker;
 
-import static com.astesbas.z80.hacker.util.ConfigFileReader.ConfigKey.*;
+import static com.astesbas.z80.hacker.util.ConfigFileProperties.ConfigKey.*;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
 import java.util.Optional;
 
 import com.astesbas.z80.hacker.domain.Memory;
 import com.astesbas.z80.hacker.engine.CmdLineArgumentsInterpreter;
 import com.astesbas.z80.hacker.engine.Z80Disassembler;
-import com.astesbas.z80.hacker.util.ConfigFileReader;
+import com.astesbas.z80.hacker.util.ConfigFileProperties;
 import com.astesbas.z80.hacker.util.StringUtil;
-import com.astesbas.z80.hacker.util.SystemOut;
 
 /**
  * Z80 Hacker - Z80 Disassembler tool.<br/>
@@ -26,9 +24,6 @@ import com.astesbas.z80.hacker.util.SystemOut;
  */
 public class Executer {
     
-    /** The configuration file reader */
-    private ConfigFileReader configFileReader = new ConfigFileReader();
-    
     /** The memory (binary data) for disassembling */
     private Memory memory = new Memory();
     
@@ -39,7 +34,7 @@ public class Executer {
      * 
      */
     public Executer() {
-        SystemOut.get().println("Z80 Hacker - Version 0.1");
+        System.out.println("Z80 Hacker - Version 0.1\n");
     }   
     
     /**
@@ -60,17 +55,14 @@ public class Executer {
     /**
      * Setup the memory (binary data) for disassembling.
      */
-    private void setupMemory() {
-        
-        // the binary file name (initialized with an empty value)
-        Optional<String> binaryFileName = Optional.empty();
+    private void setupMemory(ConfigFileProperties properties) {
         
         try {
             
             // get the binary file name, start and end addresses
-            binaryFileName = this.configFileReader.getString(BINARY_FILE);
-            int startAddress = this.configFileReader.getAddress(BINARY_START).orElse(Memory.START_ADDRESS);
-            int endAddress = this.configFileReader.getAddress(BINARY_END).orElse(Memory.END_ADDRESS);
+            Optional<String> binaryFileName = properties.getString(BINARY_FILE);
+            int startAddress = properties.getAddress(BINARY_START).orElse(Memory.START_ADDRESS);
+            int endAddress = properties.getAddress(BINARY_END).orElse(Memory.END_ADDRESS);
             
             if(binaryFileName.isPresent()) {
                 File binaryFile = new File(binaryFileName.get());
@@ -92,86 +84,65 @@ public class Executer {
     }   
     
     /**
-     * Get properties for disassembler from config reader. 
+     * Set properties for disassembler read from configuration file. 
      */
-    public void setupDisassembler() {
+    private void setupDisassembler(ConfigFileProperties properties) {
         
         try {
             // get the binary file name, start and end addresses
-            String binaryFileName = this.configFileReader.getString(BINARY_FILE).get();
+            String binaryFileName = properties.getString(BINARY_FILE).get();
             
-            // default base name for output files (asm, obj and log)
+            // default base name for output files (asm, lst and log)
             String baseFileName = Executer.getBaseFileName(binaryFileName);
-            String outputFileName = this.configFileReader.getString(OUTPUT_FILE).orElse(baseFileName+".asm");
-            String objectFileName = this.configFileReader.getString(OBJECT_FILE).orElse(baseFileName+".obj");
-            String logtFileName = this.configFileReader.getString(LOG_FILE).orElse(baseFileName+".log");
+            this.z80Disassembler.setOutputFile(properties.getString(OUTPUT_FILE).orElse(baseFileName+".asm"));
+            this.z80Disassembler.setListFile(properties.getString(LIST_FILE).orElse(baseFileName+".lst"));
+            this.z80Disassembler.setLogFile(properties.getString(LOG_FILE).orElse(baseFileName+".log"));
             
-            // get output format properties
-            int dbAlign = this.configFileReader.getInteger(DB_ALIGN).orElse(16);
-            int tabSize = this.configFileReader.getInteger(TAB_SIZE).orElse(16);
+            // set numeric values
+            this.z80Disassembler.setDbAlign(properties.getInteger(DB_ALIGN).orElse(16));
+            this.z80Disassembler.setTabSize(properties.getInteger(TAB_SIZE).orElse(4));
             
             // disassembler process properties
-            boolean autoDjnzLabels = this.configFileReader.getBoolean(AUTO_DJNZ_LABELS).orElse(true);
-            boolean autoJrLabels = this.configFileReader.getBoolean(AUTO_JR_LABELS).orElse(true);
-            boolean autoJpLabels = this.configFileReader.getBoolean(AUTO_JP_LABELS).orElse(true);
-            boolean autoCallLabels = this.configFileReader.getBoolean(AUTO_CALL_LABELS).orElse(true);
-            int lowMem = this.configFileReader.getAddress(LOW_MEM).orElse(Memory.START_ADDRESS);
-            int highMem = this.configFileReader.getAddress(HIGH_MEM).orElse(Memory.END_ADDRESS);
+            this.z80Disassembler.setNearLabelPrefix(properties.getString(NEAR_LABEL_PREFIX).orElse(""));
+            this.z80Disassembler.setFarLabelPrefix(properties.getString(FAR_LABEL_PREFIX).orElse(""));
+            this.z80Disassembler.setLowMem(properties.getAddress(LOW_MEM).orElse(Memory.START_ADDRESS));
+            this.z80Disassembler.setHighMem(properties.getAddress(HIGH_MEM).orElse(Memory.END_ADDRESS));
             
             // setup the starting point addresses
-            List<String> startingPoints = this.configFileReader.get(START_OFF);
-            for(String address:startingPoints) {
+            for(String address:properties.getListOf(START_OFF)) {
                 this.z80Disassembler.pushStartAddress(Integer.decode(address));
             }   
             
-            // setup the labels
-            List<String> labelEntries = this.configFileReader.get(LABEL);
-            for(String entry:labelEntries) {
+            // setup the labels at given addresses
+            for(String entry:properties.getListOf(LABEL)) {
                 String[] split = StringUtil.splitInTwo(entry, " ");
-                String label = split[0].trim();
-                String address = split[1].trim();
-                this.z80Disassembler.mapLabel(label, Integer.decode(address));
+                this.z80Disassembler.mapLabel(Integer.decode(split[1].trim()), split[0].trim());
             }   
             
             // setup the equs
-            List<String> equEntries = this.configFileReader.get(EQU);
-            for(String entry:equEntries) {
+            for(String entry:properties.getListOf(EQU)) {
                 String[] split = StringUtil.splitInTwo(entry, " ");
                 this.z80Disassembler.mapEqu(split[0].trim(), split[1].trim());
             }   
             
-            // setup the Z80 disassembler properties
-            this.z80Disassembler.setOutputFile(outputFileName);
-            this.z80Disassembler.setListFile(objectFileName);
-            this.z80Disassembler.setLogFile(logtFileName);
-            
-            // set the output format properties
-            this.z80Disassembler.setDbAlign(dbAlign);
-            this.z80Disassembler.setTabSize(tabSize);
-            
-            // set the disassembler process properties
-            this.z80Disassembler.setAutoDjnzLabels(autoDjnzLabels);
-            this.z80Disassembler.setAutoJrLabels(autoJrLabels);
-            this.z80Disassembler.setAutoJpLabels(autoJpLabels);
-            this.z80Disassembler.setAutoCallLabels(autoCallLabels);
-            this.z80Disassembler.setLowMem(lowMem);
-            this.z80Disassembler.setHighMem(highMem);
-            
             // set the memory data
             this.z80Disassembler.setMemoryData(this.memory);
             
-        } catch (NumberFormatException | IllegalAccessException exeception) {
+        } catch (IllegalAccessException | IllegalArgumentException exception) {
             System.err.printf(
-                String.format("%nError reading address parameter:%n\t%s", exeception.getMessage())
+                String.format("Error reading numeric parameter:%n\t%s", exception.getMessage())
             );  
             System.exit(-1);
-        }   
+        } catch(java.util.NoSuchElementException exception) {
+            System.err.printf(String.format("Missing required parameter: %s", BINARY_FILE));  
+            System.exit(-1);
+        }
         
         // load the Z80 op codes from resource file
         try {
             this.z80Disassembler.loadOpCodesFromFile("/z80-opcodes.dat");
         } catch (IllegalArgumentException | IOException exception) {
-            System.err.printf("%nError reading op-codes from op-codes.dat file!%n\t%s%n", exception.getMessage());
+            System.err.printf("Error reading op-codes from op-codes.dat file!%n\t%s%n", exception.getMessage());
             System.exit(-1);
         }   
     }   
@@ -191,38 +162,36 @@ public class Executer {
         File configFile = cmdLineInterpreter.getProjectConfigFile();
         
         // ******** read the project configuration file
-        executer.loadConfigFromFile(configFile);
-        
-        // ******** setup the binary data for disassembling (read from a binary file)
-        executer.setupMemory();
+        ConfigFileProperties properties = executer.loadConfigFromFile(configFile);
         
         // ******** setup the binary data for disassembling
-        executer.setupDisassembler();
+        executer.setupDisassembler(properties);
         
-        // execute the disassembler process
-        executer.getDisassembler().exec();
-//        try {
-//            executer.getDisassembler().exec();
-//        } catch (IOException ioException) {
-//            SystemOut.get().printf("%nI/O error! %s!\n\t%s%n",
-//                    "FILEEEEE", ioException.getMessage());
-//            System.exit(-1);
-//        }
-//        
+        // ******** setup the binary data for disassembling (read from a binary file)
+        executer.setupMemory(properties);
+        
+        // ******** execute the disassembler process
+        executer.getDisassembler().run();
     }   
     
     /**
      * Load the project configuration from given file. 
      * @param configFile the config file name
+     * @return ConfigFileProperties properties read from configuration file
      */
-    private void loadConfigFromFile(File configFile) {
+    private ConfigFileProperties loadConfigFromFile(File configFile) {
+        
+        ConfigFileProperties configFileProperties = new ConfigFileProperties();
+        
         try {
-            this.configFileReader.load(configFile);
+            configFileProperties.load(configFile);
         } catch (IllegalArgumentException | IOException exception) {
-            SystemOut.get().printf("%nError reading configuration file %s!\n\t%s%n",
+            System.out.printf("%nError reading configuration file %s!\n\t%s%n",
                 configFile.getName(), exception.getMessage());
             System.exit(-1);
         }   
+        
+        return configFileProperties;
     }   
     
     /**

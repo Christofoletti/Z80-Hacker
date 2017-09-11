@@ -17,7 +17,7 @@ import com.astesbas.z80.hacker.util.SystemOut;
 public class CmdLineArgumentsInterpreter {
     
     /** The default project configuration file name */
-    public static final String DEFAULT_CONFIG_FILE = "./default.cfg"; 
+    public static final String DEFAULT_CONFIG_FILE = "./default.cfg";
     
     private static final String[] HELP_MESSAGE = {
         "Usage: z80hacker [options...] [-p {config file}]",
@@ -35,6 +35,9 @@ public class CmdLineArgumentsInterpreter {
     private java.io.File configFile;
     
     /**
+     * This cmd line arguments interpreter stores only one parameter - the configuration file name.
+     * Note: This implementation is specific to the Z80 hAcker tool!
+     * 
      * @return the project configuration file
      */
     public java.io.File getProjectConfigFile() {
@@ -56,7 +59,7 @@ public class CmdLineArgumentsInterpreter {
                 // verify if the parameter was already processed
                 String parameter = arguments[index];
                 if(!processed.add(parameter)) {
-                    SystemOut.get().printf("Warning: duplicated parameter %s in the cmd line%n", parameter);
+                    System.out.printf("Warning: duplicated parameter %s in the cmd line%n", parameter);
                     continue;
                 }   
                 
@@ -70,7 +73,7 @@ public class CmdLineArgumentsInterpreter {
                         
                     case "-v":
                     case "--verbose":
-                        SystemOut.get().println("Setting verbose mode on");
+                        System.out.println("Setting verbose mode ON");
                         SystemOut.setVerbose(true);
                         break;
                         
@@ -104,11 +107,11 @@ public class CmdLineArgumentsInterpreter {
                 }   
             }   
             
-            // verify if the config file is available
+            // verify if the project configuration file is available
             if(this.configFile == null) {
                 this.configFile = new java.io.File(DEFAULT_CONFIG_FILE);
                 if(this.configFile.exists()) {
-                    SystemOut.get().printf("Using default project config file \"%s\"%n", this.configFile.getName());
+                    System.out.printf("Using default project config file \"%s\"%n", this.configFile.getName());
                 } else {
                     this.showErrorMessageAndExit("%nProject configuration file not found!");
                 }   
@@ -124,8 +127,8 @@ public class CmdLineArgumentsInterpreter {
      * @param errorMessage
      */
     private void showErrorMessageAndExit(String errorMessage) {
-        SystemOut.get().println(errorMessage);
-        SystemOut.get().println("Try 'z80hacker --help' for more information.");
+        System.out.println(errorMessage);
+        System.out.println("Try 'z80hacker --help' for more information.");
         System.exit(-1);
     }   
     
@@ -134,7 +137,7 @@ public class CmdLineArgumentsInterpreter {
      */
     private void printUsageMessage() {
         for(String line:HELP_MESSAGE) {
-            SystemOut.get().println(line);
+            System.out.println(line);
         }   
     }   
 }

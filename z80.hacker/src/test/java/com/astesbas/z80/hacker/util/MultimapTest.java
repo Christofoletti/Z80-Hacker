@@ -10,7 +10,7 @@ import junit.framework.TestSuite;
  * Multimap tests.
  * 
  * @author Luciano M. Christofoletti
- *         luciano.christofoletti@gmail.com
+ *         luciano@christofoletti.com.br
  * @since 25/06/2017
  */
 public class MultimapTest extends TestCase {
@@ -36,7 +36,7 @@ public class MultimapTest extends TestCase {
      */
     public void testMultimapGet() throws IllegalAccessException {
         
-        Multimap<String, String> map = new Multimap<>();
+        MultiMap<String, String> map = new MultiMap<>();
         
         // fill the map with three keys and five values
         map.map("key 1", "value 1");
@@ -77,7 +77,7 @@ public class MultimapTest extends TestCase {
      */
     public void testMultimapGetFirst() {
         
-        Multimap<String, String> map = new Multimap<>();
+        MultiMap<String, String> map = new MultiMap<>();
         
         // fill the map with three keys and five values
         map.map("key 1", "value 1a");
@@ -101,7 +101,7 @@ public class MultimapTest extends TestCase {
      */
     public void testMultimapGetLast() {
         
-        Multimap<String, String> map = new Multimap<>();
+        MultiMap<String, String> map = new MultiMap<>();
         
         // fill the map with three keys and five values
         map.map("key 1", "value 1a");
