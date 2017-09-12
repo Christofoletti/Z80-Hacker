@@ -29,59 +29,10 @@ import com.astesbas.z80.hacker.util.StringUtil;
 import com.astesbas.z80.hacker.util.SystemOut;
 
 /**
- * Z80 Disassembler.
+ * Z80 Disassembler engine.
  * 
  * @author Luciano M. Christofoletti
  *         luciano@christofoletti.com.br
- * 
- * 10%%:DJNZ %%
- * 18%%:JR %%
- * 20%%:JR NZ,%%
- * 28%%:JR Z,%%
- * 30%%:JR NC,%%
- * 38%%:JR C,%%
- * 
- * C0:RET NZ
- * C8:RET Z
- * C9:RET
- * D0:RET NC
- * D8:RET C
- * E0:RET PO
- * E8:RET PE
- * ED45:RETN
- * ED4D:RETI
- * ED55:RETN
- * ED5D:RETN
- * ED65:RETN
- * ED6D:RETN
- * ED75:RETN
- * ED7D:RETN
- * F0:RET P
- * F8:RET M
- * 
- * C2####:JP NZ,####
- * C3####:JP ####
- * CA####:JP Z,####
- * D2####:JP NC,####
- * DDE9:JP (IX)
- * E2####:JP PO,####
- * DA####:JP C,####
- * E9:JP (HL)
- * EA####:JP PE,####
- * F2####:JP P,####
- * FA####:JP M,####
- * FDE9:JP (IY)
- * 
- * C4####:CALL NZ,####
- * CC####:CALL Z,####
- * CD####:CALL ####
- * D4####:CALL NC,####
- * DC####:CALL C,####
- * E4####:CALL PO,####
- * EC####:CALL PE,####
- * F4####:CALL P,####
- * FC####:CALL M,####
-
  * @since 02/jun/2017
  */
 public class Z80Disassembler implements Runnable {
@@ -100,6 +51,9 @@ public class Z80Disassembler implements Runnable {
     
     /** Mapping for labels entries at given addresses */
     private final Map<Integer, String> labelsMap = new HashMap<>();
+    
+    /** Mapping for labels entries with displacement */
+    private final Map<Integer, Integer> labelsDisplacementMap = new HashMap<>();
     
     /** Mapping of EQU entries */
     private final Map<String, String> equsMap = new HashMap<>();
@@ -121,6 +75,9 @@ public class Z80Disassembler implements Runnable {
     
     /** Tabulation size to be inserted before instructions */
     private int tabSize = 4;
+    
+    /** Data label prefix: used as prefix for data byte (db) sections */
+    private String dataLabelPrefix = "";
     
     /** Near label prefix: used as prefix for jr/djnz labels */
     private String nearLabelPrefix = "";
@@ -175,9 +132,12 @@ public class Z80Disassembler implements Runnable {
     /**
      * 
      * @param address
+     * @param displacement
      */
-    private void removeAddressLabel(Integer address) {
-        this.labelsMap.remove(address);  
+    private void mapLabelDisplacement(Integer address, Integer displacement) {
+        if(!this.labelsDisplacementMap.containsKey(address)) {
+            this.labelsDisplacementMap.put(address, displacement);
+        }   
     }   
     
     /**
@@ -267,6 +227,13 @@ public class Z80Disassembler implements Runnable {
         } catch(IllegalArgumentException exception) {
             throw new IllegalArgumentException("Invalid tab size value!\n" + exception.getMessage());
         }   
+    }   
+    
+    /**
+     * @param dataLabelPrefix the data label prefix
+     */
+    public void setDataLabelPrefix(String dataLabelPrefix) {
+        this.dataLabelPrefix = Objects.requireNonNull(dataLabelPrefix);
     }   
     
     /**
@@ -362,9 +329,9 @@ public class Z80Disassembler implements Runnable {
         /** The list of disassembled instructions (output) */
         List<OpCode> instructionsList = new  ArrayList<>(Memory.MEMORY_SIZE);
         
-        // initializes the instructions list with bytes from memory (from low to high addresses)
+        // initializes the instruction's list with bytes from memory (from low to high addresses)
         // for disassembling purposes, a byte is output to the source file as a "db ##"
-        // during the disassembling process, a byte may be replaced by a reference to an instruction (OpCode object)
+        // during the disassembling process, a byte may be replaced by a reference to an instruction
         // or a data byte (part of an instruction)
         for(int i = Memory.START_ADDRESS; i <= Memory.END_ADDRESS; i++) {
             instructionsList.add(i, DB_BYTE);
@@ -373,10 +340,31 @@ public class Z80Disassembler implements Runnable {
         // keep running until the start-off list is empty 
         while(!this.startOffList.isEmpty()) {
             
-            // set the memory pointer equals to the start address
+            // set the memory pointer equals to the popped start-off address
             int startAddress = this.popStartAddress();
+            
+            // start processing the instruction
             this.memory.setPointer(startAddress);
             this.log("Processing start-off address: 0x%X%n", startAddress);
+            
+            // verify if the current start-off address starts at the "middle" of an instruction
+            // if so, then set a new label with "MID" prefix at the instruction's address
+            // the displacement is also mapped and is added to the jump/call instruction label
+            if(instructionsList.get(startAddress).equals(BYTE_DATA)) {
+                
+                this.log("Warning: Jump to \"middle\" of instruction at address 0x%X%n", startAddress);
+                
+                // find the first byte of the instruction
+                int instructionAddress = startAddress-1;
+                while(instructionsList.get(instructionAddress).equals(BYTE_DATA) && instructionAddress > this.lowMem) {
+                    instructionAddress--;
+                }   
+                
+                // map the new label and displacement
+                this.mapAddressLabel("MID_", instructionAddress);
+                this.mapLabelDisplacement(instructionAddress, instructionAddress-startAddress);
+                continue;
+            }   
             
             boolean processNextInstruction = true;
             while(processNextInstruction) {
@@ -384,16 +372,9 @@ public class Z80Disassembler implements Runnable {
                 // get the current position in memory to be disassembled
                 int memoryPointer = this.memory.getPointer();
                 
-                // verify if the current memory address was already processed
-                // this condition may be true if a jump instruction to the "middle" of an already
-                // processed instruction occurs
-                if(instructionsList.get(memoryPointer).equals(BYTE_DATA)) {
-                    this.removeAddressLabel(memoryPointer);
-                    this.log("Warning: Unprocessed instruction at address 0x%X%n", memoryPointer);
-                    break;
-                } else if(!instructionsList.get(memoryPointer).equals(DB_BYTE)) {
-                    // if the current instruction is not a byte data nor a db value,
-                    // it is a processed instruction. In this case, process the next start-off address
+                // if the current instruction is not a db value,
+                // it is a processed instruction. In this case, process the next start-off address
+                if(!instructionsList.get(memoryPointer).equals(DB_BYTE)) {
                     break;
                 }   
                 
@@ -412,25 +393,31 @@ public class Z80Disassembler implements Runnable {
                         continue;
                     }   
                     
-//                    // verify if the other bytes that composes the instruction was already processed
-//                    for(int k = 1; k < bytes.length; k++) {
-//                        if(!instructionsList.get(memoryPointer+k).equals(DB_BYTE)) {
-//                            this.log("Warning: Unprocessed instruction at address 0x%X%n", memoryPointer);
-//                            break;
-//                        }   
-//                    }   
+                    // verify if the current instruction "overlaps" an existing (processed) one.
+                    // if so, then stop the process, log a warning message and go to the next start-off address
+                    for(int k = 0; k < bytes.length; k++) {
+                        if(!instructionsList.get(memoryPointer+k).equals(DB_BYTE)) {
+                            this.log("Warning: Unprocessed instruction at address 0x%X%n", memoryPointer);
+                            processNextInstruction = false;
+                            break;
+                        }   
+                    }   
+                    
+                    // update the memory pointer to the next instruction
+                    if(processNextInstruction) {
+                        this.memory.incrementPointer(bytes.length);
+                    } else {
+                        break;
+                    }   
                     
                     SystemOut.vprintf("%04X: %02X %s%n", memoryPointer, bytes[0], opcode.translate(bytes));
                     
-                    // set the opcode for the current memory position and set the byte data placeholder
-                    // for next memory positions that defines the instruction (if applicable)
+                    // set the instruction (opcode) for the current memory position and set the BYTE_DATA
+                    // placeholder for next memory positions that defines the instruction (if applicable)
                     instructionsList.set(memoryPointer, opcode);
                     for(int k = 1; k < bytes.length; k++) {
                         instructionsList.set(memoryPointer+k, BYTE_DATA);
                     }   
-                    
-                    // update the memory pointer to the next instruction  
-                    this.memory.incrementPointer(bytes.length);
                     
                     // process jump instructions
                     String mnemonicMask = opcode.getMnemonicMask();
@@ -486,9 +473,20 @@ public class Z80Disassembler implements Runnable {
                     System.out.printf("%04X: db 0%XH%n", memoryPointer, currentByte);
                     this.memory.incrementPointer();
                 }   
-            }
+            }   
             
-        }
+        }   
+        
+        // post processing: add the data labels references
+        int address = this.lowMem;
+        OpCode instruction = instructionsList.get(this.lowMem);
+        while(address++ < this.highMem) {
+            OpCode nextInstruction = instructionsList.get(address);
+            if(!instruction.equals(DB_BYTE) && nextInstruction.equals(DB_BYTE)) {
+                this.mapAddressLabel(this.dataLabelPrefix, address);
+            }   
+            instruction = nextInstruction;
+        }   
         
         // process output source code file
         this.processOutputSourceFile(instructionsList);
@@ -514,7 +512,7 @@ public class Z80Disassembler implements Runnable {
             
             //writer.write(String.format("%-" + this.tabSize + " ORG s", StringUtil.intToHexString(this.lowMem)));
             //writer.write(String.format("%n    ORG %s%n%n", StringUtil.intToHexString(this.lowMem)));
-            writer.write(String.format("%n%"+this.tabSize+"sORG %s%n", "", StringUtil.intToHexString(this.lowMem)));
+            writer.write(String.format("%n%"+this.tabSize+"sORG %s%n%n", "", StringUtil.intToHexString(this.lowMem)));
             
             // writes all instructions from disassembled memory
             for(int address = this.lowMem; address <= this.highMem;) {
@@ -702,6 +700,9 @@ public class Z80Disassembler implements Runnable {
                     
                 } else {
                     
+                    // write "db" directive to indicate the start of a data section
+                    writer.write(String.format("%12s: db ", ""));
+                    
                     int byteCounter = 0;
                     do {
                         
@@ -720,7 +721,7 @@ public class Z80Disassembler implements Runnable {
             }   
             
         } catch (IOException ioException) {
-            System.err.format("Error writing output source file: %s%n", ioException.getMessage());
+            System.err.format("Error writing output list file: %s%n", ioException.getMessage());
             System.exit(-1);
         }   
     }      

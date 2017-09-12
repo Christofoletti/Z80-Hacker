@@ -165,10 +165,12 @@ public class OpCodeTest extends TestCase {
         OpCode op1 = new OpCode("01##", "XYZ ##");
         OpCode op2 = new OpCode("02##", "ABC ##");
         OpCode op3 = new OpCode("02##", "DEF ##");
+        OpCode op4 = new OpCode("02##", "DEF ##");
         assertTrue("OpCode op1 not equals null fail!", !op1.equals(null));
         assertTrue("OpCode op1 equals op1 fail!", op1.equals(op1));
         assertTrue("OpCode op1 not equals op2 fail!", !op1.equals(op2));
-        assertTrue("OpCode op2 equals op3 fail!", op2.equals(op3));
+        assertTrue("OpCode op2 equals op3 fail!", !op2.equals(op3));
+        assertTrue("OpCode op2 equals op3 fail!", op3.equals(op4));
 	}   
     
     /**

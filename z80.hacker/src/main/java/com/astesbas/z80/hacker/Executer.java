@@ -103,6 +103,7 @@ public class Executer {
             this.z80Disassembler.setTabSize(properties.getInteger(TAB_SIZE).orElse(4));
             
             // disassembler process properties
+            this.z80Disassembler.setDataLabelPrefix(properties.getString(DATA_LABEL_PREFIX).orElse(""));
             this.z80Disassembler.setNearLabelPrefix(properties.getString(NEAR_LABEL_PREFIX).orElse(""));
             this.z80Disassembler.setFarLabelPrefix(properties.getString(FAR_LABEL_PREFIX).orElse(""));
             this.z80Disassembler.setLowMem(properties.getAddress(LOW_MEM).orElse(Memory.START_ADDRESS));
