@@ -1,5 +1,6 @@
 package com.astesbas.z80.hacker;
 
+import com.astesbas.z80.hacker.domain.BinaryData;
 import com.astesbas.z80.hacker.engine.Z80Disassembler;
 
 import junit.framework.Test;
@@ -17,7 +18,9 @@ import junit.framework.TestSuite;
  */
 public class DisassemblerTest extends TestCase {
     
-    private Z80Disassembler disassembler = new Z80Disassembler();
+//    private BinaryData binaryData = new BinaryData(new byte[] {});
+//    
+//    private Z80Disassembler disassembler = new Z80Disassembler(binaryData);
     
     /**
      * Create the test case
@@ -41,8 +44,8 @@ public class DisassemblerTest extends TestCase {
     public void testDisassembler() {
         
         //this.disassembler.setLowMem(-1);
-        this.disassembler.setLowMem(0);
-        this.disassembler.setLowMem(0xFFFF);
+        //this.disassembler.setLowerBound(0);
+        //this.disassembler.setLowerBound(0xFFFF);
         //this.disassembler.setLowMem(0x1FFFF);
         
         //System.out.printf("Setting low mem: 0x%X%n", this.lowMem);

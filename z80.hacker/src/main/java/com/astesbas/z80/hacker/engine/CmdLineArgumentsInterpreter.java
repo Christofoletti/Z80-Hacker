@@ -50,77 +50,79 @@ public class CmdLineArgumentsInterpreter {
      */
     public void process(String[] arguments) {
         
-        // list of processed parameters
+        // This list stores the processed parameters (used to verify and warn if a parameter is duplicated)
         Set<String> processed = new HashSet<>();
         
-        try {
-            for(int index = 0; index < arguments.length; index++) {
-                
-                // verify if the parameter was already processed
-                String parameter = arguments[index];
-                if(!processed.add(parameter)) {
-                    System.out.printf("Warning: duplicated parameter %s in the cmd line%n", parameter);
-                    continue;
-                }   
-                
-                switch(parameter) {
-                    
+        for (int index = 0; index < arguments.length; index++) {
+            
+            // verify if the parameter was already processed
+            String parameter = arguments[index];
+            if (!processed.add(parameter)) {
+                this.showErrorMessageAndExit(
+                    String.format("Error: duplicated parameter %s in the cmd line%n", parameter)
+                );  
+            }   
+            
+            switch (parameter) {
+            
                     case "-h":
-                    case "--help":
-                        this.printUsageMessage();
-                        System.exit(0);
-                        break;
-                        
-                    case "-v":
-                    case "--verbose":
-                        System.out.println("Setting verbose mode ON");
-                        SystemOut.setVerbose(true);
-                        break;
-                        
-                    case "-p":
-                    case "--project":
-                        this.configFile = new java.io.File(arguments[++index]);
-                        SystemOut.vprintf("Project configuration file \"%s\"%n", this.configFile.getPath());
-                        break;
+                case "--help":
+                    this.printUsageMessage();
+                    System.exit(0);
+                    break;
                     
-                    case "-i":
-                    case "--init":
-                        this.showErrorMessageAndExit("Feature not implemented yet!");
-                        //this.ddFile = new java.io.File(DEFAULT_DD_FILE_NAME);
-                        //String userDir = System.getProperty("user.dir");
-                        
-//                        java.io.File source = new java.io.File("H:\\work-temp\\file");
-//                        java.io.File dest = new java.io.File(userDir+DEFAULT_DD_FILE_NAME);
-//                        try {
-//                            Files.copy(source, dest);
-//                        } catch (IOException e) {
-//                            e.printStackTrace();
-//                        }
-                        
-                        break;
-                        
-                    default:
-                        this.showErrorMessageAndExit(
-                            String.format("%nInvalid command line parameter \"%s\"", parameter)
-                        );
-                        break;
-                }   
+                case "-v":
+                case "--verbose":
+                    System.out.println("Setting verbose mode ON");
+                    SystemOut.setVerbose(true);
+                    break;
+                    
+                case "-p":
+                case "--project":
+                    try {
+                        this.configFile = new java.io.File(arguments[++index]);
+                    } catch (IndexOutOfBoundsException indexException) {
+                        this.showErrorMessageAndExit("\nError: missing project configuration file name.");
+                    }
+                    SystemOut.vprintf("Project configuration file \"%s\"%n", this.configFile.getPath());
+                    break;
+                    
+                case "-i":
+                case "--init":
+                    this.showErrorMessageAndExit("Feature not implemented yet!");
+                    // this.ddFile = new java.io.File(DEFAULT_DD_FILE_NAME);
+                    // String userDir = System.getProperty("user.dir");
+    
+                    // java.io.File source = new
+                    // java.io.File("H:\\work-temp\\file");
+                    // java.io.File dest = new
+                    // java.io.File(userDir+DEFAULT_DD_FILE_NAME);
+                    // try {
+                    // Files.copy(source, dest);
+                    // } catch (IOException e) {
+                    // e.printStackTrace();
+                    // }
+                    
+                    break;
+                    
+                default:
+                    this.showErrorMessageAndExit(String.format("%nInvalid command line parameter \"%s\"", parameter));
+                    break;
             }   
-            
-            // verify if the project configuration file is available
-            if(this.configFile == null) {
-                this.configFile = new java.io.File(DEFAULT_CONFIG_FILE);
-                if(this.configFile.exists()) {
-                    System.out.printf("Using default project config file \"%s\"%n", this.configFile.getName());
-                } else {
-                    this.showErrorMessageAndExit("%nProject configuration file not found!");
-                }   
-            }   
-            
-        } catch(IndexOutOfBoundsException indexException) {
-            this.showErrorMessageAndExit("\nError: missing project configuration file name.");
         }   
-    }
+        
+        // If the user does not specifies the configuration file, tries to use the default config file
+        if (this.configFile == null) {
+            this.configFile = new java.io.File(DEFAULT_CONFIG_FILE);
+            if (this.configFile.exists()) {
+                System.out.printf("Using default project config file \"%s\"%n", this.configFile.getName());
+            }   
+        }   
+        
+        if(!this.configFile.exists()) {
+            this.showErrorMessageAndExit("%nProject configuration file not found!");
+        }   
+    }   
     
     /**
      * Show error and hint messages and exit.

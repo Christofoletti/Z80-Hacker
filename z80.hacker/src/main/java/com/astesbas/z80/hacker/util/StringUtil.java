@@ -95,6 +95,40 @@ public class StringUtil {
     }   
     
     /**
+     * Generate an string of spaces the given size.
+     * 
+     * @param count the size of the string to be generated
+     * @return the string of spaces
+     */
+    public static String spaces(int count) {
+        return new String(new char[count]).replace('\0', ' ');
+    }   
+    
+    /**
+     * Verify if the given string is inside quotes.
+     * 
+     * @param text the text to be verified to be quoted
+     * @return true if the given string is inside quotes
+     */
+    public static boolean isQuoted(String text) {
+        String trimmedText = text.trim();
+        return (trimmedText.startsWith("\"") && trimmedText.endsWith("\""));
+    }   
+    
+    /**
+     * 
+     * @param text
+     * @return
+     */
+    public static String removeQuotes(String text) {
+        if(text.contains("\"")) {
+            return text.substring(text.indexOf("\""), text.lastIndexOf("\""));
+        } else {
+            return text;
+        }
+    }   
+    
+    /**
      * Convert an array of bytes to a hexadecimal string.
      * Example: 
      *     input:  byte[] {01, AA, BB}

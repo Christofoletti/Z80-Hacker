@@ -39,7 +39,7 @@
                 <filtering>false</filtering>
                 <includes>
                     <include>test.memory.bin</include>
-                    <include>z80-opcodes.dat</include>
+                    <include>*.dat</include>
                 </includes>
             </resource>
             <resource>

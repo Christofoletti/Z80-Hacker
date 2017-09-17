@@ -1,5 +1,6 @@
 package com.astesbas.z80.hacker.engine;
 
+import static com.astesbas.z80.hacker.util.ConfigFileProperties.ConfigKey.*;
 import static java.nio.file.StandardOpenOption.APPEND;
 import static java.nio.file.StandardOpenOption.CREATE;
 
@@ -9,21 +10,19 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.file.Files;
-import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 
-import com.astesbas.z80.hacker.domain.Memory;
-import com.astesbas.z80.hacker.domain.OpCode;
-import com.astesbas.z80.hacker.domain.OpCodeClass;
+import com.astesbas.z80.hacker.domain.BinaryData;
+import com.astesbas.z80.hacker.domain.Decoder;
+import com.astesbas.z80.hacker.domain.Instruction;
+import com.astesbas.z80.hacker.domain.PrefixClass;
+import com.astesbas.z80.hacker.util.ConfigFileProperties;
+import com.astesbas.z80.hacker.util.FileDateUtil;
 import com.astesbas.z80.hacker.util.MultiMap;
 import com.astesbas.z80.hacker.util.StringUtil;
 import com.astesbas.z80.hacker.util.SystemOut;
@@ -38,25 +37,19 @@ import com.astesbas.z80.hacker.util.SystemOut;
 public class Z80Disassembler implements Runnable {
     
     /**
-     * Using a multi-map to group the Z80 opcodes into four main groups:
+     * Using a multi-map to group the Z80 instructions into four main groups:
      *     1) Opcodes starting with "CB" byte (bit and rotation ops)
      *     2) Opcodes starting with "DD" byte (almost all IX reg related ops)
      *     3) Opcodes starting with "FD" byte (almost all IY reg related ops)
      *     4) All other opcodes that does not fall in the groups above
     */
-    private final MultiMap<OpCodeClass, OpCode> opCodesMap = new MultiMap<>();
+    private final MultiMap<PrefixClass, Instruction> instructionsMap = new MultiMap<>();
     
     /** List containing the start points (address) in memory to be disassembled */
     private final List<Integer> startOffList = new  ArrayList<>();
     
-    /** Mapping for labels entries at given addresses */
-    private final Map<Integer, String> labelsMap = new HashMap<>();
-    
-    /** Mapping for labels entries with displacement */
-    private final Map<Integer, Integer> labelsDisplacementMap = new HashMap<>();
-    
-    /** Mapping of EQU entries */
-    private final Map<String, String> equsMap = new HashMap<>();
+    /** The log (.log) file path */
+    private Path logPath = Paths.get("./output.log");
     
     /** The output (.asm) file path */
     private Path outputPath = Paths.get("./output.asm");
@@ -64,36 +57,11 @@ public class Z80Disassembler implements Runnable {
     /** The list (.lst) output file path */
     private Path listPath = Paths.get("./output.lst");
     
-    /** The log (.log) file path */
-    private Path logPath = Paths.get("./output.log");
+    /** The binary data decoder (manages the code and data to be disassembled) */
+    private Decoder decoder;
     
-    /** The memory to be disassembled (binary data) */
-    private Memory memory = new Memory();
-    
-    /** Number of byte per line for "db" directives */
-    private int dbAlign = 16;
-    
-    /** Tabulation size to be inserted before instructions */
-    private int tabSize = 4;
-    
-    /** Data label prefix: used as prefix for data byte (db) sections */
-    private String dataLabelPrefix = "";
-    
-    /** Near label prefix: used as prefix for jr/djnz labels */
-    private String nearLabelPrefix = "";
-    
-    /** Far label prefix: used as prefix for call/jp labels */
-    private String farLabelPrefix = "";
-    
-    /** The low address to be disassembled - addresses smaller than this will not be processed */
-    private int lowMem = Memory.START_ADDRESS;
-    
-    /** The high address to be disassembled - addresses greater than this will not be processed */
-    private int highMem = Memory.END_ADDRESS;
-    
-    // The data byte representation (used only as placeholders for unprocessed/reserved byte positions))
-    private static final OpCode DB_BYTE = new OpCode("##", "db ##"); // "unprocessed" bytes will be output as "db ##"
-    private static final OpCode BYTE_DATA = new OpCode("##", "[##]"); // placeholder for "data bytes" of instructions
+    /** The output processor. Generates assembly source code and list files */
+    private final OutputProcessor outputProcessor = new OutputProcessor();
     
     /** List of prefixes of JP instructions that uses pointers to get the address of the jump (e.g. JP (IX)) */
     private static final List<String> INDEXED_JP_PREFIX = Arrays.asList("DD", "E9", "FD");
@@ -101,68 +69,8 @@ public class Z80Disassembler implements Runnable {
     /**
      * Z80 Disassembler constructor.
      */
-    public Z80Disassembler() {
-    }   
-    
-    /**
-     * Maps a label to be used as reference in the disassembled code.
-     * If the address is already maps a label, then the new mapping is discarded.
-     * 
-     * @param address the address to be mapped to the given label
-     * @param label the key label
-     */
-    public void mapLabel(Integer address, String label) {
-        if(!this.labelsMap.containsKey(address)) {
-            this.labelsMap.put(address, label);
-        }   
-    }   
-    
-    /**
-     * Maps a label to be used as reference in the disassembled code. The label
-     * is defined as the concatenation of the prefeix and start addess.
-     * 
-     * If the address is already maps a label, then the new mapping is discarded.
-     * @param prefix
-     * @param address
-     */
-    private void mapAddressLabel(String prefix, Integer address) {
-        this.mapLabel(address, String.format("%s%s", prefix, StringUtil.intToHexString(address)));  
-    }   
-    
-    /**
-     * 
-     * @param address
-     * @param displacement
-     */
-    private void mapLabelDisplacement(Integer address, Integer displacement) {
-        if(!this.labelsDisplacementMap.containsKey(address)) {
-            this.labelsDisplacementMap.put(address, displacement);
-        }   
-    }   
-    
-    /**
-     * Maps an EQU directive.
-     * @param label the key label
-     * @param value the value to be mapped to the given equ label
-     */
-    public void mapEqu(String label, String value) {
-        this.equsMap.put(label, value);
-    }   
-    
-    /**
-     * Sets the output file name (disassembled code)
-     * @param outputFileName the output file name
-     */
-    public void setOutputFile(String outputFileName) {
-        this.outputPath = this.getFilePath(outputFileName);
-    }   
-    
-    /**
-     * Sets the list file path.
-     * @param listFileName the listFile name
-     */
-    public void setListFile(String listFileName) {
-        this.listPath = this.getFilePath(listFileName);
+    public Z80Disassembler(BinaryData binaryData) {
+        this.decoder = new Decoder(binaryData);
     }   
     
     /**
@@ -170,127 +78,34 @@ public class Z80Disassembler implements Runnable {
      * @param logFileName the logFile name to set
      */
     public void setLogFile(String logFileName) {
-        this.logPath = this.getFilePath(logFileName);
+        this.logPath = FileDateUtil.getFilePath(logFileName);
     }   
     
     /**
-     * Get the Path for the given file name.
-     * @param fileName the file
-     * @return the path for the file name
+     * Sets the output file name (disassembled code)
+     * @param outputFileName
+     *            the output file name
      */
-    public Path getFilePath(String fileName) {
-        Path path = null;
-        try {
-            path = Paths.get(fileName);
-            Files.deleteIfExists(path);
-        } catch (IOException | InvalidPathException exception) {
-            System.err.printf("%nError getting path to file: \"%s\"\n\t%s%n", fileName, exception.getMessage());
-            System.exit(-1);
-        }   
-        return path;
+    public void setOutputFile(String outputFileName) {
+        this.outputPath = FileDateUtil.getFilePath(outputFileName);
     }   
     
     /**
-     * Sets the memory to be disassembled.<br/>
-     * The memory reference is stored instead of copying the original memory to an internal object.
-     * This is not a problem since the memory data will not be changed.
-     * 
-     * @param memory the memory to set
+     * Sets the list file path.
+     * @param listFileName
+     *            the listFile name
      */
-    public void setMemoryData(Memory memory) {
-        this.memory = Objects.requireNonNull(memory);
-    }      
-    
-    /**
-     * Set the data align size (maximum of 64).
-     * 
-     * @param dbAlign the dbAlign to set
-     * @throws IllegalArgumentException if the given value is outside the permitted range
-     */
-    public void setDbAlign(int dbAlign) throws IllegalArgumentException {
-        try {
-            this.dbAlign = validateRange(dbAlign, 1, 64);
-        } catch(IllegalArgumentException exception) {
-            throw new IllegalArgumentException("Invalid db align value!\n" + exception.getMessage());
-        }   
+    public void setListFile(String listFileName) {
+        this.listPath = FileDateUtil.getFilePath(listFileName);
     }   
-    
-    /**
-     * Set the tabulation size (maximum of 64).
-     * 
-     * @param tabSize the tabSize to set
-     * @throws IllegalArgumentException if the given value is outside the permitted range
-     */
-    public void setTabSize(int tabSize) throws IllegalArgumentException  {
-        try {
-            this.tabSize = validateRange(tabSize, 0, 32);
-        } catch(IllegalArgumentException exception) {
-            throw new IllegalArgumentException("Invalid tab size value!\n" + exception.getMessage());
-        }   
-    }   
-    
-    /**
-     * @param dataLabelPrefix the data label prefix
-     */
-    public void setDataLabelPrefix(String dataLabelPrefix) {
-        this.dataLabelPrefix = Objects.requireNonNull(dataLabelPrefix);
-    }   
-    
-    /**
-     * @param nearLabelPrefix the near label prefix
-     */
-    public void setNearLabelPrefix(String nearLabelPrefix) {
-        this.nearLabelPrefix = Objects.requireNonNull(nearLabelPrefix);
-    }   
-    
-    /**
-     * @param farLabelPrefix the far label prefix
-     */
-    public void setFarLabelPrefix(String farLabelPrefix) {
-        this.farLabelPrefix = Objects.requireNonNull(farLabelPrefix);
-    }   
-    
-    /**
-     * Set the low memory address. The address must be between Memory.START_ADDRESS and high memory.
-     * @param lowMem the lowMem to set
-     */
-    public void setLowMem(int lowMem) {
-        try {
-            this.lowMem = validateRange(lowMem, Memory.START_ADDRESS, this.highMem);
-        } catch(IllegalArgumentException exception) {
-            throw new IllegalArgumentException("Invalid lower memory address paramter!\n" + exception.getMessage());
-        }   
-    }   
-    
-    /**
-     * Set the low memory address. The address must be between low memory and Memory.END_ADDRESS.
-     * @param highMem the highMem to set
-     */
-    public void setHighMem(int highMem) {
-        try {
-            this.highMem = validateRange(highMem, this.lowMem, Memory.END_ADDRESS);
-        } catch(IllegalArgumentException exception) {
-            throw new IllegalArgumentException("Invalid high memory address paramter!\n" + exception.getMessage());
-        }   
-    }   
-    
-    /**
-     * 
-     * @param address the address to verify
-     */
-    private boolean isInMemoryRange(int address) {
-        return (address >= this.lowMem && address <= this.highMem);
-    }
     
     /**
      * Pushes a starting address point for disassembler process.
      * @param address the start address for disassembling
      */
     public void pushStartAddress(Integer address) {
-        try {
-            this.startOffList.add(validateRange(address, this.lowMem, this.highMem));
-        } catch(IllegalArgumentException exception) {
-            throw new IllegalArgumentException("Invalid start-off address paramter!\n" + exception.getMessage());
+        if(this.decoder.isValidAddress(address)) {
+            this.startOffList.add(address);
         }   
     }   
     
@@ -316,291 +131,190 @@ public class Z80Disassembler implements Runnable {
         }   
     }   
     
-    /**
-     * @throws IOException 
-     * 
-     */
     @Override
     public void run() {
         
-        this.log("Starting disassembler process at %s%n", new Date(System.currentTimeMillis()));
-        this.log("Output file: %s%n", this.outputPath);
+        this.log("Starting disassembler process at %s%n", FileDateUtil.getCurrentTime());
         
         /** The list of disassembled instructions (output) */
-        List<OpCode> instructionsList = new  ArrayList<>(Memory.MEMORY_SIZE);
+        BinaryData binaryData = this.decoder.getBinaryData();
         
-        // initializes the instruction's list with bytes from memory (from low to high addresses)
-        // for disassembling purposes, a byte is output to the source file as a "db ##"
-        // during the disassembling process, a byte may be replaced by a reference to an instruction
-        // or a data byte (part of an instruction)
-        for(int i = Memory.START_ADDRESS; i <= Memory.END_ADDRESS; i++) {
-            instructionsList.add(i, DB_BYTE);
-        }   
-        
-        // keep running until the start-off list is empty 
         while(!this.startOffList.isEmpty()) {
             
-            // set the memory pointer equals to the popped start-off address
             int startAddress = this.popStartAddress();
+            binaryData.setPointer(startAddress);
             
-            // start processing the instruction
-            this.memory.setPointer(startAddress);
-            this.log("Processing start-off address: 0x%X%n", startAddress);
-            
-            // verify if the current start-off address starts at the "middle" of an instruction
-            // if so, then set a new label with "MID" prefix at the instruction's address
-            // the displacement is also mapped and is added to the jump/call instruction label
-            if(instructionsList.get(startAddress).equals(BYTE_DATA)) {
+            // Verify if the current start-off address was already processed
+            if(!this.decoder.isDbByte(startAddress)) {
                 
-                this.log("Warning: Jump to \"middle\" of instruction at address 0x%X%n", startAddress);
-                
-                // find the first byte of the instruction
-                int instructionAddress = startAddress-1;
-                while(instructionsList.get(instructionAddress).equals(BYTE_DATA) && instructionAddress > this.lowMem) {
-                    instructionAddress--;
+                // If the current position holds a parameter byte, then map the label with displacement
+                // and log a warning message
+                if(this.decoder.isParameterByte(startAddress)) {
+                    
+                    this.log("Warning: The start-off address 0x%X conflicts with instruction's data!%n", startAddress);
+                    
+                    int instructionAddress = this.decoder.getStartAddressOfInstructionAt(startAddress);
+                    this.outputProcessor.mapCodeLabel(instructionAddress);
+                    this.outputProcessor.mapOffsetCodeLabel(startAddress, instructionAddress-startAddress);
                 }   
                 
-                // map the new label and displacement
-                this.mapAddressLabel("MID_", instructionAddress);
-                this.mapLabelDisplacement(instructionAddress, instructionAddress-startAddress);
                 continue;
             }   
             
-            boolean processNextInstruction = true;
-            while(processNextInstruction) {
+            this.log("Processing start-off address: 0x%X%n", startAddress);
+            this.outputProcessor.mapCodeLabel(startAddress);
+            
+            // Keep disassembling the binary data until at least one of the stop conditions is satisfied 
+            do {
                 
-                // get the current position in memory to be disassembled
-                int memoryPointer = this.memory.getPointer();
+                // Store the current instruction pointer (this pointer is updated for every instruction processed)
+                int instructionAddress = binaryData.getPointer();
                 
-                // if the current instruction is not a db value,
-                // it is a processed instruction. In this case, process the next start-off address
-                if(!instructionsList.get(memoryPointer).equals(DB_BYTE)) {
+                // If the current instruction is not a db value, then it is a processed instruction.
+                // In this case, process the next start-off address
+                if(!this.decoder.isDbByte(instructionAddress)) {
                     break;
                 }   
                 
-                // get the list of op codes for the current byte (prefix)
-                byte currentByte = this.memory.get();
-                String opCodePrefix = String.format("%02X", currentByte);
-                OpCodeClass opCodeClass = OpCodeClass.of(opCodePrefix);
+                // Find the matching instruction for the next bytes in the binary data.
+                // This search method could be optimized, but for this application it is ok!
+                Optional<Instruction> match = this.findMatchingInstruction(instructionAddress);
+                if(!match.isPresent()) {
+                    // The next sequence of bytes does not defines a valid instruction.
+                    // Keep the current byte as a "db ##" and go to the next memoy address
+                    System.out.printf("%04X: db 0%XH%n", instructionAddress, binaryData.get());
+                    binaryData.incrementPointer();
+                    continue;
+                }   
                 
-                // search for the op code that matches the next instruction (and prefix)
-                // this search method could be optimized, but for this application it is ok!
-                for(OpCode opcode:this.opCodesMap.get(opCodeClass)) {
+                Instruction instruction = match.get();
+                String opCode = String.format("%02X", binaryData.get());
+                byte[] bytes = binaryData.getBytes(instruction.getSize());
+                
+                // Verify if the current instruction "overlaps" an existing (processed) one.
+                // If so, then stop the process, log a warning message and go to the next start-off address
+                if(!this.decoder.isAvailable(instructionAddress, instruction.getSize())) {
+                    this.log("Warning: \"Ovelapping\" instruction at address 0x%X%n", instructionAddress);
+                    break;
+                }   
+                
+                SystemOut.vprintf("%04X: %02X %s%n", instructionAddress, bytes[0], instruction.translate(bytes));
+                
+                // Set the instruction and update the binary data pointer 
+                this.decoder.setInstruction(instructionAddress, instruction);
+                binaryData.incrementPointer(bytes.length);
+                
+                // Process "special" instructions that may generate a new start-off address or end the current
+                // disassembling thread
+                String mnemonicMask = instruction.getMnemonicMask();
+                if(mnemonicMask.equals("RET") || !this.decoder.isValidAddress(binaryData.getPointer())) {
                     
-                    // find a matching opcode for the next bytes in memory
-                    byte[] bytes = this.memory.getBytes(opcode.getSize());
-                    if(!opcode.matches(bytes)) {
-                        continue;
-                    }   
+                    // A RET instruction was found or the end of memory was reached
+                    break;
                     
-                    // verify if the current instruction "overlaps" an existing (processed) one.
-                    // if so, then stop the process, log a warning message and go to the next start-off address
-                    for(int k = 0; k < bytes.length; k++) {
-                        if(!instructionsList.get(memoryPointer+k).equals(DB_BYTE)) {
-                            this.log("Warning: Unprocessed instruction at address 0x%X%n", memoryPointer);
-                            processNextInstruction = false;
-                            break;
-                        }   
-                    }   
+                } else if(mnemonicMask.contains("CALL") || (mnemonicMask.contains("JP"))) {
                     
-                    // update the memory pointer to the next instruction
-                    if(processNextInstruction) {
-                        this.memory.incrementPointer(bytes.length);
-                    } else {
+                    // Verify if the JP instruction is indexed by a register.
+                    // If this is the case, the resulting address of the jump is unknown
+                    if (INDEXED_JP_PREFIX.contains(opCode)) {
+                        this.log("Warning: Found indexed jump instruction at address 0x%X%n", instructionAddress);
                         break;
                     }   
                     
-                    SystemOut.vprintf("%04X: %02X %s%n", memoryPointer, bytes[0], opcode.translate(bytes));
+                    // Evaluate the call/jp address and push to start-off list
+                    int address = (bytes[1] & 0xFF) | ((bytes[2] << 8) & 0xFFFF);
+                    this.pushStartAddress(address);
                     
-                    // set the instruction (opcode) for the current memory position and set the BYTE_DATA
-                    // placeholder for next memory positions that defines the instruction (if applicable)
-                    instructionsList.set(memoryPointer, opcode);
-                    for(int k = 1; k < bytes.length; k++) {
-                        instructionsList.set(memoryPointer+k, BYTE_DATA);
+                    // For unconditional jump, the current disassembling thread must be ended
+                    if (opCode.equals("C3")) {
+                        break;
                     }   
                     
-                    // process jump instructions
-                    String mnemonicMask = opcode.getMnemonicMask();
-                    if(mnemonicMask.contains("CALL") || (mnemonicMask.contains("JP"))) {
-                        
-                        // verify if the JP instruction is indexed by a register
-                        // in this case, the resulting address of the jump is unknown
-                        if(INDEXED_JP_PREFIX.contains(opCodePrefix)) {
-                            this.log("Warning: Found indexed jump instruction at address 0x%X%n", memoryPointer);
-                            processNextInstruction = false;
-                            break;
-                        }   
-                        
-                        // evaluate the call/jp address and push to start-off list
-                        int address = (bytes[1] & 0xFF) | ((bytes[2] << 8) & 0xFFFF);
-                        if(this.isInMemoryRange(address)) {
-                            this.pushStartAddress(address);
-                            if(!instructionsList.get(address).equals(BYTE_DATA)) {
-                                this.mapAddressLabel(this.farLabelPrefix, address);
-                            } else {
-                                this.log("Warning: could not define label for jump instruction at address 0x%X%n", address);
-                            }   
-                        }   
-                        
-                        // for unconditional jump, the current disassembling thread must be ended
-                        if(opCodePrefix.equals("C3")) {
-                            processNextInstruction = false;
-                            break;
-                        }   
-                        
-                    } else if(mnemonicMask.contains("JR") || mnemonicMask.contains("DJNZ")) {
-                        
-                        // evaluate the absolute address from relative jump and push it to start-off list
-                        int address = memoryPointer + (bytes[1] + 2);
-                        if(this.isInMemoryRange(address)) {
-                            this.pushStartAddress(address);
-                            if(!instructionsList.get(address).equals(BYTE_DATA)) {
-                                this.mapAddressLabel(this.nearLabelPrefix, address);
-                            } else {
-                                this.log("Warning: could not define label for jump instruction at address 0x%X%n", address);
-                            }   
-                        }   
-                    }   
+                } else if (mnemonicMask.contains("JR") || mnemonicMask.contains("DJNZ")) {
                     
-                    // update the stop criteria for this thread
-                    processNextInstruction = !(mnemonicMask.contains("RET") || this.memory.getPointer() > this.highMem);
-                    break;
+                    // Evaluate the absolute address from relative jump and push  it to start-off list
+                    int address = instructionAddress + (bytes[1] + 2);
+                    this.pushStartAddress(address);
                 }   
                 
-                // the current byte could not be found in the op code list, leave it as a "db" and
-                // go to the next memory position
-                if(memoryPointer == this.memory.getPointer()) {
-                    System.out.printf("%04X: db 0%XH%n", memoryPointer, currentByte);
-                    this.memory.incrementPointer();
-                }   
-            }   
+            } while(true);
             
         }   
         
-        // post processing: add the data labels references
-        int address = this.lowMem;
-        OpCode instruction = instructionsList.get(this.lowMem);
-        while(address++ < this.highMem) {
-            OpCode nextInstruction = instructionsList.get(address);
-            if(!instruction.equals(DB_BYTE) && nextInstruction.equals(DB_BYTE)) {
-                this.mapAddressLabel(this.dataLabelPrefix, address);
+        // Post processing: add the data labels references
+        int address = this.decoder.getStartAddress();
+        List<Instruction> instructionsList = this.decoder.getInstructionsList();
+        Instruction instruction = instructionsList.get(address);
+        while(address++ < this.decoder.getEndAddress()) {
+            Instruction nextInstruction = instructionsList.get(address);
+            if(!instruction.equals(Decoder.DB_BYTE) && nextInstruction.equals(Decoder.PARAMTER)) {
+                this.outputProcessor.mapDataLabel(address);
             }   
             instruction = nextInstruction;
         }   
         
-        // process output source code file
-        this.processOutputSourceFile(instructionsList);
-        this.processOutputListFile(instructionsList);
+        this.log("Disassembler process finished at %s%n", FileDateUtil.getCurrentTime());
+        
+        // Process output files
+        //this.processOutputSourceFile(instructionsList);
+        this.outputProcessor.processOutputListFile(this.listPath, this.decoder);
     }   
     
     /**
-     * 
-     * @param instructionsList
+     * Find the matching instruction at the given address.
+     * @param address the address of binary data
+     * @return the matching instruction
      */
-    private void processOutputSourceFile(List<OpCode> instructionsList) {
+    private Optional<Instruction> findMatchingInstruction(int address) {
         
-        // append log file for writing (create a new file if necessary)
-        try (BufferedWriter writer = Files.newBufferedWriter(this.outputPath, CREATE, APPEND)) {
-            
-            writer.write("; Z80 Hacker disassembler tool - version 0.1\n");
-            writer.write("; Author: Luciano M. Christofoletti\n");
-            writer.write(String.format("; Date: %s%n", java.time.LocalDateTime.now()));
-            Optional<String> binaryFileName = this.memory.getBinaryFileName();
-            if(binaryFileName.isPresent()) {
-                writer.write(String.format("; Input file: %s%n", binaryFileName.get()));
+        BinaryData binaryData = this.decoder.getBinaryData();
+        PrefixClass prefixClass = PrefixClass.of(binaryData.get(address));
+        
+        for(Instruction instruction:this.instructionsMap.get(prefixClass)) {
+            byte[] bytes = binaryData.getBytes(instruction.getSize());
+            if(instruction.matches(bytes)) {
+                return Optional.of(instruction);
             }   
-            
-            //writer.write(String.format("%-" + this.tabSize + " ORG s", StringUtil.intToHexString(this.lowMem)));
-            //writer.write(String.format("%n    ORG %s%n%n", StringUtil.intToHexString(this.lowMem)));
-            writer.write(String.format("%n%"+this.tabSize+"sORG %s%n%n", "", StringUtil.intToHexString(this.lowMem)));
-            
-            // writes all instructions from disassembled memory
-            for(int address = this.lowMem; address <= this.highMem;) {
-                
-                // get the current instruction
-                OpCode instruction = instructionsList.get(address);
-                String mnemonicMask = instruction.getMnemonicMask();
-                byte[] bytes = this.memory.getBytes(address, instruction.getSize());
-                
-                // write label, if applicable
-                String label = this.labelsMap.get(address);
-                if(label != null) {
-                    writer.write(String.format("%n%s:%n", label));
-                }   
-                
-                // process instruction opcode
-                if(!instruction.equals(DB_BYTE)) {
-                    
-                    // output byte sequence and mnemonic of current instruction
-                    if(mnemonicMask.contains("JR") || mnemonicMask.contains("DJNZ")) {
-                        
-                        int nearAddress = address + (bytes[1] + 2);
-                        String nearLabel = this.labelsMap.get(nearAddress);
-                        if(nearLabel == null) {
-                            nearLabel = StringUtil.intToHexString(nearAddress);
-                        }   
-                        
-                        writer.write(String.format(
-                            "%"+this.tabSize+ "s%s%n", "", instruction.translate(bytes, nearLabel))
-                        );  
-//                        writer.write(instruction.translate(bytes, jumpLabel));
-//                        writer.newLine();
-                        
-                    } else if(mnemonicMask.contains("CALL") || mnemonicMask.contains("JP")) {
-                        
-                        int farAddress = (bytes[1] & 0xFF) | ((bytes[2] << 8) & 0xFFFF);
-                        String farLabel = this.labelsMap.get(farAddress);
-                        if(farLabel == null) {
-                            farLabel = this.equsMap.get(farAddress);
-                            if(farLabel == null) {
-                                farLabel = StringUtil.intToHexString(farAddress);
-                            }   
-                        }   
-                        
-                        writer.write(String.format(
-                            "%"+this.tabSize+ "s%s%n", "", instruction.translate(bytes, farLabel))
-                        );  
-                        
-                    } else {
-                        //writer.write(String.format("%s%n", instruction.translate(bytes)));
-                        writer.write(String.format(
-                            "%"+this.tabSize+ "s%s%n", "", instruction.translate(bytes))
-                        );  
-                    }   
-                    
-                    // update the current memory address
-                    address += instruction.getSize();
-                    
-                } else {
-                    
-                    // write the start of data line (db directive plus byte data)
-                    //writer.newLine();
-                    byte data = this.memory.get(address++);
-                    writer.write(String.format(
-                        "%"+this.tabSize+ "sdb %4s", "", StringUtil.byteToHexString(data))
-                    );  
-                    
-                    int byteCounter = 0;
-                    while(instructionsList.get(address).equals(DB_BYTE)) {
-                        
-                        // get byte from current memory address
-                        data = this.memory.get(address);
-                        writer.write(String.format(", %4s", StringUtil.byteToHexString(data)));
-                        
-                        // output max of db align bytes per line
-                        if(++address > this.highMem || ++byteCounter > this.dbAlign) {
-                            break;
-                        }   
-                    }   
-                    
-                    // goto to the next line :P
-                    writer.newLine();
-                }   
-            }   
-            
-//            this.memory.setPointer(this.lowMem);
+        }   
+        
+        return Optional.empty();
+    }   
+
+//    /**
+//     * 
+//     * @param instructionsList
+//     */
+//    private void processOutputSourceFile(List<Instruction> instructionsList) {
+//        
+//        try (BufferedWriter writer = Files.newBufferedWriter(this.outputPath, CREATE, APPEND)) {
 //            
+//            writer.write("; **** Generated by Z80 Hacker disassembler tool - version 0.1 ****\n");
+//            writer.write("; \n");
+//            writer.write("; Author: Luciano M. Christofoletti\n");
+//            writer.write("; www.christofoletti.com.br\n");
+//            writer.write(String.format("; Date: %s%n", java.time.LocalDateTime.now()));
+//            Optional<String> binaryFileName = this.binaryData.getBinaryFileName();
+//            if(binaryFileName.isPresent()) {
+//                writer.write(String.format("; Input file: %s%n", binaryFileName.get()));
+//            }   
+//            
+//            // Write out the equ mapping keys/values
+//            writer.write(String.format("%"+this.tabSize+ "s%n", ""));
+//            for(Entry<String, String> equMapEntry:this.equsMap.entrySet()) {
+//                writer.write(String.format("%-12s EQU %s%n", equMapEntry.getValue()+":", equMapEntry.getKey()));
+//            }   
+//            
+//            // Write the ORG directive
+//            writer.write(String.format("%n%"+this.tabSize+"sORG %s%n%n", "", StringUtil.intToHexString(this.lowMem)));
+//            
+//            // writes all instructions from disassembled memory
 //            for(int address = this.lowMem; address <= this.highMem;) {
+//                
+//                // get the current instruction
+//                Instruction instruction = instructionsList.get(address);
+//                String mnemonicMask = instruction.getMnemonicMask();
+//                String opCodeMask = instruction.getByteMask();
+//                byte[] bytes = this.binaryData.getBytes(address, instruction.getSize());
 //                
 //                // write label, if applicable
 //                String label = this.labelsMap.get(address);
@@ -608,123 +322,170 @@ public class Z80Disassembler implements Runnable {
 //                    writer.write(String.format("%n%s:%n", label));
 //                }   
 //                
-//                OpCode instruction = instructionsList.get(address);
-//                if(instruction != BYTE_DATA) {
+//                // process instruction opcode
+//                if(!instruction.equals(DB_BYTE)) {
 //                    
-//                    // get memory data
-//                    byte[] bytes = this.memory.getBytes(instruction.getSize());
-//                    
-//                    // get instruction and label information
-//                    String mnemonicMask = instruction.getMnemonicMask();
-//                    //String label = this.labelsMap.get(memoryPosition);
-//                    
+//                    // output byte sequence and mnemonic of current instruction
 //                    if(mnemonicMask.contains("JR") || mnemonicMask.contains("DJNZ")) {
-//                        int jumpAddress = this.memory.getPointer() + (bytes[1] + 2);
-//                        writer.write("    " + instruction.translate(bytes, StringUtil.intToHexString(jumpAddress)) + "\n");
-//                    }
-////                    } else if(mnemonicMask.contains("CALL") || mnemonicMask.contains("JP")) {
-////                        int callAddress = (bytes[1] & 0xFF) | ((bytes[2] << 8) & 0xFFFF);
-////                        writer.write("    " + instruction.translate(bytes, StringUtil.intToHexString(callAddress)) + "\n");
-//                    else {
-//                        writer.write("    " + instruction.translate(bytes) + "\n");
+//                        
+//                        int nearAddress = address + (bytes[1] + 2);
+//                        String nearLabel = this.labelsMap.get(nearAddress);
+//                        if(nearLabel == null) {
+//                            nearLabel = StringUtil.intToHexString(nearAddress);
+//                        }   
+//                        
+//                        writer.write(String.format(
+//                            "%"+this.tabSize+ "s%s%n", "", instruction.translate(bytes, nearLabel))
+//                        );  
+////                        writer.write(instruction.translate(bytes, jumpLabel));
+////                        writer.newLine();
+//                        
+//                    } else if(mnemonicMask.contains("CALL") || 
+//                             (mnemonicMask.contains("JP") && bytes.length > 2) ||
+//                             (mnemonicMask.contains("LD") && opCodeMask.contains("####"))) {
+//                        
+//                        // Evaluate the two bytes address (for prefixed instructions, the address bytes are
+//                        // shifted one byte ahead)
+//                        int farAddress = instruction.getPrefixClass().equals(PrefixClass.$$) ?
+//                                (bytes[1] & 0xFF) | ((bytes[2] << 8) & 0xFFFF):
+//                                (bytes[2] & 0xFF) | ((bytes[3] << 8) & 0xFFFF);
+//                        
+//                        // First, tries to get the label from mapped labels 
+//                        String farLabel = this.labelsMap.get(farAddress);
+//                        if(farLabel == null) {
+//                            farLabel = StringUtil.intToHexString(farAddress);
+//                            // verify if there is a equ definition for the "translated" address
+//                            if(this.equsMap.containsKey(farLabel)) {
+//                                farLabel = this.equsMap.get(farLabel);
+//                            }   
+//                        }   
+//                        
+//                        writer.write(String.format(
+//                            "%"+this.tabSize+ "s%s%n", "", instruction.translate(bytes, farLabel))
+//                        );  
+//                        
+//                    } else {
+//                        
+//                        //writer.write(String.format("%s%n", instruction.translate(bytes)));
+//                        writer.write(String.format(
+//                            "%"+this.tabSize+ "s%s%n", "", instruction.translate(bytes))
+//                        );  
 //                    }   
-//                    //writer.write("    " + instruction.translate(bytes) + "\n");
-////                    byte[] bytes = this.memory.getBytes(instruction.getSize());
-////                    writer.write("    " + instruction.translate(bytes) + "\n");
-//                    this.memory.incrementPointer(instruction.getSize()); 
+//                    
+//                    // update the current memory address
+//                    address += instruction.getSize();
 //                    
 //                } else {
-//                    this.memory.incrementPointer();
+//                    
+//                    // write the start of data line (db directive plus byte data)
+//                    //writer.newLine();
+//                    byte data = this.binaryData.get(address++);
+//                    writer.write(String.format(
+//                        "%"+this.tabSize+ "sdb %4s", "", StringUtil.byteToHexString(data))
+//                    );  
+//                    
+//                    int byteCounter = 0;
+//                    while(instructionsList.get(address).equals(DB_BYTE)) {
+//                        
+//                        // verify if there is a label at the current byte address
+//                        // if so, then go to the next line, set the label e restart the db section
+//                        if(this.labelsMap.get(address) != null) {
+//                            break;
+//                        }   
+//                        
+//                        // get byte from current memory address
+//                        data = this.binaryData.get(address);
+//                        writer.write(String.format(", %4s", StringUtil.byteToHexString(data)));
+//                        
+//                        // output max of db align bytes per line
+//                        if(++address > this.highMem || ++byteCounter > this.dbAlign) {
+//                            break;
+//                        }   
+//                    }   
+//                    
+//                    // goto to the next line :P
+//                    writer.newLine();
 //                }   
-//                
-//                // update the memory index
-//                address += instruction.getSize();
-//            }
-            
-        } catch (IOException ioException) {
-            System.err.format("Error writing output source file: %s%n", ioException.getMessage());
-            System.exit(-1);
-        }   
-        
-        
-    }   
+//            }   
+//            
+//        } catch (IOException ioException) {
+//            System.err.format("Error writing output source file: %s%n", ioException.getMessage());
+//            System.exit(-1);
+//        }   
+//        
+//        
+//    }   
     
     /**
-     * Writes the list file. The list file contains the processed instructions with addresses and binary data
-     * shown in hexadecimal format (without labels).
-     * This file does not contains compilable code. It is intended for output validation/analysis only.
-     * 
-     * @param instructionsList the processed instructions list
+     * Set properties for disassembler read from configuration file.
      */
-    private void processOutputListFile(List<OpCode> instructionsList) {
+    public void setProperties(ConfigFileProperties properties) {
         
-        // append log file for writing (create a new file if necessary)
-        try (BufferedWriter writer = Files.newBufferedWriter(this.listPath, CREATE, APPEND)) {
+        try {
             
-            writer.write("; Z80 Hacker disassembler tool - version 0.1\n");
-            writer.write("; Author: Luciano M. Christofoletti\n");
-            writer.write(String.format("; Date: %s%n", java.time.LocalDateTime.now()));
-            Optional<String> binaryFileName = this.memory.getBinaryFileName();
-            if(binaryFileName.isPresent()) {
-                writer.write(String.format("; Input file: %s%n", binaryFileName.get()));
+            try {
+                // Get the binary file name and default base name for output files (asm, lst and log)
+                String binaryFileName = properties.getString(BINARY_FILE).get();
+                String baseFileName = FileDateUtil.getBaseFileName(binaryFileName);
+                
+                this.setOutputFile(properties.getString(OUTPUT_FILE).orElse(baseFileName+".asm"));
+                this.setListFile(properties.getString(LIST_FILE).orElse(baseFileName+".lst"));
+                this.setLogFile(properties.getString(LOG_FILE).orElse(baseFileName+".log"));
+                
+            } catch(java.util.NoSuchElementException exception) {
+                System.err.printf(String.format("Missing required parameter: %s", BINARY_FILE));
+                System.exit(-1);
             }   
             
-            // writes all instructions from disassembled memory
-            for(int address = this.lowMem; address <= this.highMem;) {
-                
-                // write current memory address
-                writer.newLine();
-                writer.write(String.format("%s: ", StringUtil.intToHexString(address)));
-                
-                // get the current instruction
-                OpCode instruction = instructionsList.get(address);
-                
-                // process instruction opcode
-                if(!instruction.equals(DB_BYTE)) {
-                    
-                    // output byte sequence and mnemonic of current instruction
-                    byte[] bytes = this.memory.getBytes(address, instruction.getSize());
-                    writer.write(String.format("%12s: ", StringUtil.bytesToHex(bytes, " ")));
-                    
-                    // output the instruction's mnemonic
-                    String mnemonicMask = instruction.getMnemonicMask();
-                    if(mnemonicMask.contains("JR") || mnemonicMask.contains("DJNZ")) {
-                        int jumpAddress = address + (bytes[1] + 2);
-                        writer.write(instruction.translate(bytes, StringUtil.intToHexString(jumpAddress)));
-                    } else {
-                        writer.write(String.format("%s", instruction.translate(bytes)));
-                    }   
-                    
-                    // update the current memory address
-                    address += instruction.getSize();
-                    
-                } else {
-                    
-                    // write "db" directive to indicate the start of a data section
-                    writer.write(String.format("%12s: db ", ""));
-                    
-                    int byteCounter = 0;
-                    do {
-                        
-                        // get byte from current memory address
-                        byte data = this.memory.get(address);
-                        writer.write(String.format("%4s ", StringUtil.byteToHexString(data)));
-                        
-                        // output max of db align bytes per line
-                        if(++address > this.highMem || ++byteCounter > this.dbAlign) {
-                            break;
-                        }   
-                        
-                    } while(instructionsList.get(address).equals(DB_BYTE));
-                    
-                }   
+            // Setup the formatting output properties
+            this.outputProcessor.setDbAlign(properties.getInteger(DB_ALIGN).orElse(16));
+            this.outputProcessor.setTabSize(properties.getInteger(TAB_SIZE).orElse(4));
+            this.outputProcessor.setCodeLabelPrefix(properties.getString(CODE_LABEL_PREFIX).orElse(""));
+            this.outputProcessor.setDataLabelPrefix(properties.getString(DATA_LABEL_PREFIX).orElse(""));
+            
+            // Setup the user defined labels at given addresses
+            for (String entry : properties.getListOf(LABEL)) {
+                String[] split = StringUtil.splitInTwo(entry, " ");
+                this.outputProcessor.mapLabel(Integer.decode(split[1].trim()), split[0].trim());
             }   
             
-        } catch (IOException ioException) {
-            System.err.format("Error writing output list file: %s%n", ioException.getMessage());
+            // Setup the user defined equs
+            for (String entry : properties.getListOf(EQU)) {
+                String[] split = StringUtil.splitInTwo(entry, " ");
+                this.outputProcessor.mapEqu(split[0].trim(), split[1].trim());
+            }   
+            
+            // Setup disassembler limits
+            this.decoder.setStartAddress(properties.getAddress(START_ADDRESS).orElse(BinaryData.START_ADDRESS));
+            this.decoder.setEndAddress(properties.getAddress(END_ADDRESS).orElse(BinaryData.END_ADDRESS));
+            
+        } catch (IllegalAccessException | IllegalArgumentException exception) {
+            System.err.printf(
+                String.format("Error reading config file parameter:%n\t%s", exception.getMessage())
+            );  
             System.exit(-1);
         }   
-    }      
+        
+        // Setup the starting point addresses
+        for (String address : properties.getListOf(START_OFF)) {
+            try {
+                this.pushStartAddress(Integer.decode(address));
+            } catch (NumberFormatException nfe) {
+                System.err.printf(
+                    String.format("Error setting start-off address parameter: %s%n\t%s", address, nfe.getMessage())
+                );  
+                System.exit(-1);
+            }   
+        }   
+        
+        // load the Z80 instructions set from resource file
+        try {
+            this.loadInstructionsFromFile("/z80-instructions.dat");
+        } catch (IllegalArgumentException | IOException exception) {
+            System.err.printf("Error reading data from z80-instructions.dat file!%n\t%s%n", exception.getMessage());
+            System.exit(-1);
+        }   
+    }   
     
     /**
      * Get input stream resource for given file name.
@@ -736,74 +497,65 @@ public class Z80Disassembler implements Runnable {
     }   
     
     /**
-     * Loads the op codes data from file (patterns and attributes).
+     * Loads the Z80 instruction's data from file (binary and mnemonic representations).
      * 
-     * @param file
+     * @param fileName the instruction file name
      * @throws IOException if some reading error occurs
      * @throws IllegalArgumentException if the input file has some invalid data
      */
-    public synchronized void loadOpCodesFromFile(String fileName)
+    public synchronized void loadInstructionsFromFile(String fileName)
             throws IOException, IllegalArgumentException {
         InputStream stream = this.getResourceAsStream(fileName);
-    	this.loadOpCodesFromStream(stream);
+    	this.loadInstructionsFromStream(stream);
     }   
     
     /**
-     * Loads the op codes data from input stream (patterns and attributes).
+     * Loads the Z80 instructions data from input stream (patterns and attributes).
      * 
      * @param inputStream the input stream
      * @throws IOException if some reading error occurs
      * @throws IllegalArgumentException if the input file has some invalid data
      */
-    public synchronized void loadOpCodesFromStream(InputStream inputStream)
+    private synchronized void loadInstructionsFromStream(InputStream inputStream)
             throws IOException, IllegalArgumentException {
         
-        // line data read from text file
         String line;
-        
-        // the current line number (used for error messages)
         int lineNumber = 0;
         int instructionsCounter = 0;
         
         // InputStreamReader reads bytes and decodes them into characters using a specified charset
         try (BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream))) {
             
-            SystemOut.vprint("Loading op-codes from resource file...");
+            SystemOut.vprint("Loading Z80 instructions information from resource file...");
             
             while ((line = bufferedReader.readLine()) != null) {
                 
-                // update the line number counter
                 lineNumber++;
                 
-                // discard comment lines and empty lines
+                // Discard comment lines and empty lines
                 line = StringUtil.clean(line, ';');
                 if (line.isEmpty()) {
                     continue;
                 }   
                 
-                // get the opcode and the mnemonic string format 
+                // Get the instruction's binary matcher and the mnemonic string 
                 String lineSplit[] = line.split(":");
                 if (lineSplit.length > 1) {
                     
-                    // get the op-code/mnemonic string representations
-                    String opCodeString = lineSplit[0].trim();
-                    String mnemonicString = lineSplit[1].trim();
+                    // get the byte/mnemonic masks
+                    String byteMask = lineSplit[0].trim();
+                    String mnemonicMask = lineSplit[1].trim();
                     
-                    // create the OpCode for the instruction and get the group prefix
-                    OpCode opCode = new OpCode(opCodeString, mnemonicString);
-                    
-                    // add the opcode to the corresponding op-code list (mapped by prefix)
-                    //this.opCodesMap.get(opCode.getPrefix()).add(opCode);
-                    this.opCodesMap.map(opCode.getOpCodeClass(), opCode);
-                    
-                    // update the processed instruction counter
+                    // Create the instruction and map it according to the prefix class
+                    Instruction instruction = new Instruction(byteMask, mnemonicMask);
+                    this.instructionsMap.map(instruction.getPrefixClass(), instruction);
                     instructionsCounter++;
                     
                 } else {
                     SystemOut.vprintln("Error!");
                     throw new IllegalArgumentException(
                         String.format("Error processing instruction \"%s\" at line %d%n", line, lineNumber)
-                    );
+                    );  
                 }   
             }   
             
@@ -811,26 +563,9 @@ public class Z80Disassembler implements Runnable {
             SystemOut.vprintf("Total of instructions read: %d\n", instructionsCounter);
             
         } catch(NullPointerException ioException) {
-            //  a NullPointerException may occur if the op-codes.dat cannot be found in the classpath
-            throw new IOException("System could not find the op-codes resource file in the classpath!");
-        }
-    }   
-	
-    /**
-     * 
-     * @param value
-     * @param min
-     * @param max
-     * @return
-     * @throws IllegalArgumentException
-     */
-    private static int validateRange(int value, int min, int max) throws IllegalArgumentException {
-        if(value >= min && value <= max) {
-            return value;
-        } else {
-            throw new IllegalArgumentException(
-                String.format("\tValue %d is outside allowed range [%d, %d]", value, min, max)
-            );
+            //  a NullPointerException may occur if the z80-instructions.dat cannot be found in the classpath
+            throw new IOException("System could not find the Z80 instructions resource file in the classpath!");
         }   
     }   
+    
 }

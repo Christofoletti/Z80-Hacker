@@ -24,8 +24,8 @@ public class ConfigFileProperties extends MultiMap<String, String> {
     public static enum ConfigKey {
         BINARY_FILE, BINARY_START, BINARY_END,
         OUTPUT_FILE, LIST_FILE, LOG_FILE,
-        DB_ALIGN, TAB_SIZE, DATA_LABEL_PREFIX, NEAR_LABEL_PREFIX, FAR_LABEL_PREFIX,
-        LOW_MEM, HIGH_MEM, START_OFF, LABEL, EQU;
+        DB_ALIGN, TAB_SIZE, CODE_LABEL_PREFIX, DATA_LABEL_PREFIX,
+        START_ADDRESS, END_ADDRESS, START_OFF, LABEL, EQU;
     }   
     
     /**
@@ -38,11 +38,9 @@ public class ConfigFileProperties extends MultiMap<String, String> {
     public synchronized void load(java.io.File parametersFile) 
             throws java.io.IOException, IllegalArgumentException {
         
-        // line of data read from text file
         String line;
-        
-        // the current line number (used for error messages)
         int lineNumber = 0;
+        
         this.clear();
         
         SystemOut.vprintln("Reading parameters from project configuration file:");
@@ -54,24 +52,22 @@ public class ConfigFileProperties extends MultiMap<String, String> {
             
             while ((line = bufferedReader.readLine()) != null) {
                 
-                // update the line number counter
                 lineNumber++;
                 
-                // discard comments and empty lines
+                // Discard comments and empty lines
                 line = StringUtil.clean(line, '#');
                 if (line.isEmpty()) {
                     continue;
                 }   
                 
-                // split the line into two strings
+                // Split the line into two strings
                 String lineSplit[] = StringUtil.splitInTwo(line, ":");
                 if (lineSplit.length > 1) {
                     
-                    // get the key:value in line
+                    // Get the key/value in line - must be in the format "key:value"
                     String key = lineSplit[0].trim();
                     String value = lineSplit[1].trim();
                     
-                    // put the key and value into the map
                     this.map(key, value);
                     SystemOut.vprintf("%s: [%s]%n", key, value);
                     
