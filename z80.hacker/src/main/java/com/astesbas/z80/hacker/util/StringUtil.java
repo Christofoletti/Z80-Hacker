@@ -48,23 +48,23 @@ public class StringUtil {
     
     /**
      * Clean the given text line: removes any leading and trailing whitespace and comments.
-     * This "cleaning method" implementation is very simple and may not cover every valid case.
+     * This "cleaning method" implementation is very simple and may not cover every possible cases.
      * This method removes all commented text (if applicable).
-     *  
+     * 
      * @param text the text string to be cleaned
      * @param comment the comment char
      * @return the cleaned string
      */
     public static String clean(String text, char comment) {
         
-        // verify if the given text contains at least one comment char
+        // Verify if the given text contains at least one comment char
         if(text.indexOf(comment) >= 0) {
             
-            // flags to detect quotation in the text
+            // Flags to detect quotation in the text
             boolean insideQuote = false;
             boolean insideSingleQuote = false;
             
-            // search the string for a comment char
+            // Search the string for a comment char
             for(int index = 0; index < text.length(); index++) {
                 char currentChar = text.charAt(index);
                 if(!insideSingleQuote && currentChar == '"') {

@@ -49,6 +49,9 @@ public class Instruction implements java.io.Serializable {
     /** The index of the data parameter (if applicable) */
     private final int dataIndex;
     
+    /** The size of the instruction (in bytes) */
+    private final int size;
+    
     /** The opcode pattern validator */
     private final java.util.regex.Pattern pattern;
     
@@ -82,6 +85,7 @@ public class Instruction implements java.io.Serializable {
         
         // set the opcode prefix for this opcode instance
         this.prefixClass = PrefixClass.of(this.byteMask.substring(0, 2));
+        this.size = (this.byteMask.length() >> 1);
     }   
     
     /**
@@ -120,6 +124,22 @@ public class Instruction implements java.io.Serializable {
     }   
     
     /**
+     * Return true if the instruction has a word parameter.
+     * @return true for instructions with word parameter
+     */
+    public boolean hasWordParameter() {
+        return this.byteMask.contains("####");
+    }   
+    
+    /**
+     * Return true if the instruction has a displacement parameter.
+     * @return true for instructions with displacement parameter
+     */
+    public boolean hasDisplacementParameter() {
+        return (this.displacementIndex > 0);
+    }   
+    
+    /**
      * Translates a given sequence of bytes (byte code) into a mnemonic representation.
      * If a non-empty string label is provided, then it will replace the word or displacement byte in the
      * resulting mnemonic.
@@ -142,7 +162,7 @@ public class Instruction implements java.io.Serializable {
         String mnemonic = this.mnemonicMask;
         
         // Format the mnemonic using the word parameter index (if available)
-        if (this.byteMask.contains(WORD_PARAM)) {
+        if (this.hasWordParameter()) {
             
             // The word parameter must by translated using a little endian format
             if(label.isEmpty()) {
@@ -204,7 +224,7 @@ public class Instruction implements java.io.Serializable {
     
     @Override
     public int hashCode() {
-        return this.byteMask.hashCode();
+        return this.mnemonicMask.hashCode();
     }   
     
     @Override

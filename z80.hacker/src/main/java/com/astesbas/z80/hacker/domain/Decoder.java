@@ -74,13 +74,6 @@ public class Decoder {
     }   
     
     /**
-     * @return the end address of disassembled code
-     */
-    public int getEndAddress() {
-        return this.endAddress;
-    }   
-    
-    /**
      * Set the start address. The address must be between Memory.START_ADDRESS and high memory.
      * @param startAddress the start address value to set
      */
@@ -90,6 +83,13 @@ public class Decoder {
         } catch(IllegalArgumentException exception) {
             throw new IllegalArgumentException("Invalid start address parameter!\n" + exception.getMessage());
         }   
+    }   
+    
+    /**
+     * @return the end address of disassembled code
+     */
+    public int getEndAddress() {
+        return this.endAddress;
     }   
     
     /**
@@ -150,8 +150,10 @@ public class Decoder {
     }   
     
     /**
-     * Verify if the bytes in the range [address, address+length] is available (not decoded yet)
-     * @param address the start addres
+     * Verify if the bytes in the range [address, address+length] is available
+     * to "hold" an instruction (not decoded yet).
+     * 
+     * @param address the start address
      * @param length the number of bytes
      * @return true if there is no byte "allocated" in the range
      */
@@ -165,6 +167,11 @@ public class Decoder {
     }   
     
     /**
+     * Return the address of the first byte of an already "translated" instruction.
+     * Example:
+     * Translated instruction at 08000H is: LD BC,0AA55H (byte sequence 01 55 AA)
+     * Calling this method with address 08002H will return 08000H as the address instruction.
+     * Calling this method for addresses 08000H and 08001H will also return the address 08000H.
      * 
      * @param address
      * @return
@@ -187,7 +194,7 @@ public class Decoder {
     }   
     
     /**
-     * 
+     * Verify if the given address is in the valid disassembling range.
      * @param address the address to verify
      */
     public boolean isValidAddress(int address) {

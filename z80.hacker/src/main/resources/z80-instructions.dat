@@ -564,7 +564,8 @@ DDB6%%:OR (IX+%%)
 DDBC:CP IXh
 DDBD:CP IXl
 DDBE%%:CP (IX+%%)
-DDCB%%00:RLC (IX+%%),B
+; DDCB%%00:RLC (IX+%%),B
+DDCB%%00:db 0DDH, 0CBH, 0%%H, 0H ; RLC (IX+%%),B
 DDCB%%01:RLC (IX+%%),C
 DDCB%%02:RLC (IX+%%),D
 DDCB%%03:RLC (IX+%%),E
