@@ -120,7 +120,8 @@ public class Instruction implements java.io.Serializable {
      * @return the number of bytes of this instruction
      */
     public int getSize() {
-        return (this.byteMask.length() >> 1);
+        //return (this.byteMask.length() >> 1);
+        return this.size;
     }   
     
     /**
@@ -128,7 +129,7 @@ public class Instruction implements java.io.Serializable {
      * @return true for instructions with word parameter
      */
     public boolean hasWordParameter() {
-        return this.byteMask.contains("####");
+        return this.byteMask.contains(WORD_PARAM);
     }   
     
     /**
@@ -183,9 +184,15 @@ public class Instruction implements java.io.Serializable {
             if (this.displacementIndex < 0) {
                 mnemonic = String.format(this.mnemonicMask, data);
             } else {
-                String displacement = (this.displacementIndex > 0 && label.isEmpty()) ? 
-                        StringUtil.byteToHexString(bytes[this.displacementIndex]):label;
-                mnemonic = String.format(this.mnemonicMask, displacement, data);
+                if(label.isEmpty()) {
+                    byte byteValue = bytes[this.displacementIndex];
+                    mnemonic = String.format(this.mnemonicMask, Byte.toString(byteValue), data);
+                    if(byteValue < 0) {
+                        mnemonic = mnemonic.replace("+", "");
+                    }   
+                } else {
+                    mnemonic = String.format(this.mnemonicMask, label, data);
+                }   
             }   
         }   
         

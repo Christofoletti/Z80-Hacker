@@ -132,17 +132,17 @@ public class InstructionsTest extends TestCase {
     	
         Instruction djnz = new Instruction("10%%", "DJNZ %%");
         String djnzMnemonic1 = djnz.translate(new byte[] {0x10, (byte) 0xC0});
-        assertEquals("Error translating 10 C0 instruction (DJNZ 0C0H)!", "DJNZ 0C0H", djnzMnemonic1);
+        assertEquals("Error translating 10 C0 instruction (DJNZ -64)!", "DJNZ -64", djnzMnemonic1);
         String djnzMnemonic2 = djnz.translate(new byte[] {0x10, (byte) 0xAB});
-        assertEquals("Error translating 10 AB instruction (DJNZ 0ABH)!", "DJNZ 0ABH", djnzMnemonic2);
+        assertEquals("Error translating 10 AB instruction (DJNZ -85)!", "DJNZ -85", djnzMnemonic2);
         String djnzMnemonic3 = djnz.translate(new byte[] {0x10, (byte) 0xAB}, "LOOP");
         assertEquals("Error translating DJNZ LOOP!", "DJNZ LOOP", djnzMnemonic3);
         
         Instruction ldIx = new Instruction("DD36%%##", "LD (IX+%%),##");
         String ldIxMnemonic1 = ldIx.translate(new byte[] {(byte) 0xDD, (byte) 0x36, 0x5, 0x2});
-        assertEquals("Error translating DD 36 05 02 instruction (LD (IX+05H),02H)!", "LD (IX+05H),02H", ldIxMnemonic1);
+        assertEquals("Error translating DD 36 05 02 instruction (LD (IX+5),02H)!", "LD (IX+5),02H", ldIxMnemonic1);
         String ldIxMnemonic2 = ldIx.translate(new byte[] {(byte) 0xDD, 0x36, 0x55, (byte) 0xBB});
-        assertEquals("Error translating DD 36 55 BB instruction (LD (IX+55H),0BBH)!", "LD (IX+055H),0BBH", ldIxMnemonic2);
+        assertEquals("Error translating DD 36 55 BB instruction (LD (IX+85),0BBH)!", "LD (IX+85),0BBH", ldIxMnemonic2);
         String ldIxMnemonic3 = ldIx.translate(new byte[] {(byte) 0xDD, 0x36, 0x55, (byte) 0xBB}, "HTMI");
         assertEquals("Error translating DD 36 55 BB instruction (LD (IX+HTMI),0BBH)!", "LD (IX+HTMI),0BBH", ldIxMnemonic3);
     }   

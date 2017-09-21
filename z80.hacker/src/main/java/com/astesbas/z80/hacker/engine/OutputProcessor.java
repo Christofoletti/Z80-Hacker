@@ -207,6 +207,8 @@ public class OutputProcessor {
      */
     public void processOutputSourceFile(Path outputPath, Decoder decoder) {
         
+        String tab = StringUtil.spaces(this.tabSize);
+        
         try (BufferedWriter writer = Files.newBufferedWriter(outputPath, CREATE, APPEND)) {
             
             BinaryData binaryData = decoder.getBinaryData();
@@ -237,7 +239,6 @@ public class OutputProcessor {
                 // get the current instruction
                 Instruction instruction = instructionsList.get(address);
                 String mnemonicMask = instruction.getMnemonicMask();
-                String opCodeMask = instruction.getByteMask();
                 byte[] bytes = binaryData.getBytes(address, instruction.getSize());
                 
                 // write label, if applicable
@@ -258,7 +259,7 @@ public class OutputProcessor {
                             nearLabel = StringUtil.intToHexString(nearAddress);
                         }   
                         
-                        writer.write(StringUtil.spaces(this.tabSize));
+                        writer.write(tab);
                         writer.write(String.format("%s%n", instruction.translate(bytes, nearLabel)));  
                         
                     } else if(mnemonicMask.contains("CALL") || 
@@ -281,16 +282,10 @@ public class OutputProcessor {
                             }   
                         }   
                         
-                        writer.write(String.format(
-                            "%"+this.tabSize+ "s%s%n", "", instruction.translate(bytes, farLabel))
-                        );  
+                        writer.write(String.format("%s%s%n", tab, instruction.translate(bytes, farLabel)));  
                         
                     } else {
-                        
-                        //writer.write(String.format("%s%n", instruction.translate(bytes)));
-                        writer.write(String.format(
-                            "%"+this.tabSize+ "s%s%n", "", instruction.translate(bytes))
-                        );  
+                        writer.write(String.format("%s%s%n", tab, instruction.translate(bytes)));  
                     }   
                     
                     // update the current memory address
@@ -300,9 +295,7 @@ public class OutputProcessor {
                     
                     // write the start of data line (db directive plus byte data)
                     byte byteData = binaryData.get(address++);
-                    //writer.newLine();
-                    writer.write(StringUtil.spaces(this.tabSize));
-                    writer.write(String.format("db %4s", StringUtil.byteToHexString(byteData)));  
+                    writer.write(String.format("%sdb %4s", tab, StringUtil.byteToHexString(byteData)));  
                     
                     int byteCounter = 0;
                     while(decoder.isDbByte(address)) {

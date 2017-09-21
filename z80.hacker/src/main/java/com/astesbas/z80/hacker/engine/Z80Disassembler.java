@@ -133,13 +133,24 @@ public class Z80Disassembler implements Runnable {
         }   
     }   
     
+    /**
+     * Output text to log file and default output stream.
+     * @param format the string formatter
+     * @param args the parameters for the log formatter
+     */
+    private void systemOutAndLog(String format, Object... args) {
+        this.log(format, args);
+        System.out.printf(format, args);
+    }   
+    
     @Override
     public void run() {
         
-        this.log("Starting disassembler process at %s%n", FileDateUtil.getCurrentTime());
+        this.systemOutAndLog("Starting disassembler process at %s%n", FileDateUtil.getCurrentTime());
         
         /** The list of disassembled instructions (output) */
         BinaryData binaryData = this.decoder.getBinaryData();
+        boolean warning = false;
         
         while(!this.startOffList.isEmpty()) {
             
@@ -154,6 +165,7 @@ public class Z80Disassembler implements Runnable {
                 if(this.decoder.isParameterByte(startAddress)) {
                     
                     this.log("Warning: The start-off address 0x%X conflicts with instruction's data!%n", startAddress);
+                    warning = true;
                     
                     int instructionAddress = this.decoder.getStartAddressOfInstructionAt(startAddress);
                     this.outputProcessor.mapCodeLabel(instructionAddress);
@@ -187,7 +199,7 @@ public class Z80Disassembler implements Runnable {
                 if(!match.isPresent()) {
                     // The next sequence of bytes does not defines a valid instruction.
                     // Keep the current byte as a "db ##" and go to the next memoy address
-                    System.out.printf("%04X: db 0%XH%n", instructionAddress, binaryData.get());
+                    //System.out.printf("%04X: db 0%XH%n", instructionAddress, binaryData.get());
                     binaryData.incrementPointer();
                     continue;
                 }   
@@ -199,10 +211,11 @@ public class Z80Disassembler implements Runnable {
                 // If so, then stop the process, log a warning message and go to the next start-off address
                 if(!this.decoder.isAvailable(instructionAddress, instruction.getSize())) {
                     this.log("Warning: \"Ovelapping\" instruction at address 0x%X%n", instructionAddress);
+                    warning = true;
                     break;
                 }   
                 
-                SystemOut.vprintf("%04X: %02X %s%n", instructionAddress, bytes[0], instruction.translate(bytes));
+                //SystemOut.vprintf("%04X: %02X %s%n", instructionAddress, bytes[0], instruction.translate(bytes));
                 
                 // Set the instruction and update the binary data pointer 
                 this.decoder.setInstruction(instructionAddress, instruction);
@@ -224,14 +237,13 @@ public class Z80Disassembler implements Runnable {
                     // If this is the case, the resulting address of the jump is unknown
                     if (INDEXED_JP_PREFIX.contains(opCode)) {
                         this.log("Warning: Found indexed jump instruction at address 0x%X%n", instructionAddress);
+                        warning = true;
                         break;
                     }   
                     
                     // Evaluate the call/jp address and push to start-off list
                     int address = (bytes[1] & 0xFF) | ((bytes[2] << 8) & 0xFFFF);
-                    if(this.pushStartAddress(address)) {
-                        //this.outputProcessor.mapCodeLabel(address);
-                    }
+                    this.pushStartAddress(address);
                     
                     // For unconditional jump, the current disassembling thread must be ended
                     if (opCode.equals("C3")) {
@@ -242,9 +254,7 @@ public class Z80Disassembler implements Runnable {
                     
                     // Evaluate the absolute address from relative jump and push  it to start-off list
                     int address = instructionAddress + (bytes[1] + 2);
-                    if(this.pushStartAddress(address)) {
-                        //this.outputProcessor.mapCodeLabel(address);
-                    }   
+                    this.pushStartAddress(address);
                 }   
                 
             } while(true);
@@ -263,9 +273,11 @@ public class Z80Disassembler implements Runnable {
             if(!instruction.equals(Decoder.DB_BYTE) && nextInstruction.equals(Decoder.DB_BYTE)) {
                 this.outputProcessor.mapDataLabel(address+1);
             } else if (instruction.getMnemonicMask().contains("LD") && instruction.hasWordParameter()) {
+                
                 byte[] bytes = binaryData.getBytes(address, instruction.getSize());
                 int labelAddress = (bytes[1] & 0xFF) | ((bytes[2] << 8) & 0xFFFF);
                 Instruction targetInstruction = instructionsList.get(labelAddress);
+                
                 if(this.decoder.isValidAddress(labelAddress) && targetInstruction.equals(Decoder.DB_BYTE)) {
                     this.outputProcessor.mapDataLabel(labelAddress);
                 }   
@@ -275,7 +287,10 @@ public class Z80Disassembler implements Runnable {
             address++;
         }   
         
-        this.log("Disassembler process finished at %s%n", FileDateUtil.getCurrentTime());
+        this.systemOutAndLog("Disassembler process finished at %s%n", FileDateUtil.getCurrentTime());
+        if(warning) {
+            System.out.println("There are warnings. See log file for more information!");
+        }   
         
         // Process output files
         this.outputProcessor.processOutputSourceFile(this.outputPath, this.decoder);

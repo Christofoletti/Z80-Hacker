@@ -170,6 +170,19 @@ public class StringUtil {
     }   
     
     /**
+     * Return the decimal string representation (with sign) for the given byte. 
+     * @param value the byte value
+     * @return the string representation of the given value
+     */
+    public static String signalByteToString(byte value) {
+        if(value < 0) {
+            return Byte.toString(value);
+        } else {
+            return "+"+Byte.toString(value);
+        }
+    }   
+    
+    /**
      * Converts two bytes (LSB and MSB) into a string representation in hexadecimal (word).
      * 
      * @param lsb least significant byte
