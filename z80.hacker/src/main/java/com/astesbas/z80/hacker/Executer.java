@@ -21,7 +21,7 @@ public class Executer {
      * The Z80 hacker tool executer :P
      */
     public Executer() {
-        System.out.println("Z80 Hacker - Version 0.1");
+        System.out.println("Z80 Hacker - Version 1.0");
     }   
     
     /**

@@ -47,7 +47,7 @@ public class ProjectFileManagerTest extends TestCase {
         ConfigFileProperties manager = new ConfigFileProperties();
         
         // get the default config file resource from classpath
-        java.net.URL filePath = manager.getClass().getClassLoader().getResource("default.cfg");
+        java.net.URL filePath = manager.getClass().getClassLoader().getResource("shrubbles.cfg");
         java.io.File configFile = new java.io.File(filePath.toURI());
         
         // load the default configuration file

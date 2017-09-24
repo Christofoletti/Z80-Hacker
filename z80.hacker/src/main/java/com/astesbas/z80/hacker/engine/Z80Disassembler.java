@@ -32,6 +32,7 @@ import com.astesbas.z80.hacker.util.SystemOut;
  * 
  * @author Luciano M. Christofoletti
  *         luciano@christofoletti.com.br
+ * @version 1.0
  * @since 02/jun/2017
  */
 public class Z80Disassembler implements Runnable {
@@ -65,6 +66,9 @@ public class Z80Disassembler implements Runnable {
     
     /** List of prefixes of JP instructions that uses pointers to get the address of the jump (e.g. JP (IX)) */
     private static final List<String> INDEXED_JP_PREFIX = Arrays.asList("DD", "E9", "FD");
+    
+    /** The warning flag */
+    private boolean hasWarnings = false;
     
     /**
      * Z80 decoder constructor.
@@ -120,6 +124,14 @@ public class Z80Disassembler implements Runnable {
     }   
     
     /**
+     * Return the warning status of disassembler process.
+     * @return true if there are any warnings
+     */
+    public boolean hasWarnings() {
+        return this.hasWarnings;
+    }
+    
+    /**
      * Output text to log file.
      * @param format the string formatter
      * @param args the parameters for the log formatter
@@ -132,6 +144,16 @@ public class Z80Disassembler implements Runnable {
             System.exit(-1);
         }   
     }   
+    
+    /**
+     * Output warning text to log file.
+     * @param format the string formatter
+     * @param args the parameters for the log formatter
+     */
+    private void warn(String format, Object... args) {
+        this.hasWarnings = true;
+        this.log(format, args);
+    }
     
     /**
      * Output text to log file and default output stream.
@@ -147,10 +169,10 @@ public class Z80Disassembler implements Runnable {
     public void run() {
         
         this.systemOutAndLog("Starting disassembler process at %s%n", FileDateUtil.getCurrentTime());
+        this.hasWarnings = false;
         
         /** The list of disassembled instructions (output) */
         BinaryData binaryData = this.decoder.getBinaryData();
-        boolean warning = false;
         
         while(!this.startOffList.isEmpty()) {
             
@@ -164,8 +186,7 @@ public class Z80Disassembler implements Runnable {
                 // and log a warning message
                 if(this.decoder.isParameterByte(startAddress)) {
                     
-                    this.log("Warning: The start-off address 0x%X conflicts with instruction's data!%n", startAddress);
-                    warning = true;
+                    this.warn("Warning: The start-off address 0x%X conflicts with instruction's data!%n", startAddress);
                     
                     int instructionAddress = this.decoder.getStartAddressOfInstructionAt(startAddress);
                     this.outputProcessor.mapCodeLabel(instructionAddress);
@@ -198,8 +219,7 @@ public class Z80Disassembler implements Runnable {
                 Optional<Instruction> match = this.findMatchingInstruction(instructionAddress);
                 if(!match.isPresent()) {
                     // The next sequence of bytes does not defines a valid instruction.
-                    // Keep the current byte as a "db ##" and go to the next memoy address
-                    //System.out.printf("%04X: db 0%XH%n", instructionAddress, binaryData.get());
+                    // Keep the current byte as a "db ##" and go to the next address
                     binaryData.incrementPointer();
                     continue;
                 }   
@@ -210,12 +230,9 @@ public class Z80Disassembler implements Runnable {
                 // Verify if the current instruction "overlaps" an existing (processed) one.
                 // If so, then stop the process, log a warning message and go to the next start-off address
                 if(!this.decoder.isAvailable(instructionAddress, instruction.getSize())) {
-                    this.log("Warning: \"Ovelapping\" instruction at address 0x%X%n", instructionAddress);
-                    warning = true;
+                    this.warn("Warning: \"Ovelapping\" instruction at address 0x%X%n", instructionAddress);
                     break;
                 }   
-                
-                //SystemOut.vprintf("%04X: %02X %s%n", instructionAddress, bytes[0], instruction.translate(bytes));
                 
                 // Set the instruction and update the binary data pointer 
                 this.decoder.setInstruction(instructionAddress, instruction);
@@ -224,20 +241,19 @@ public class Z80Disassembler implements Runnable {
                 String opCode = String.format("%02X", binaryData.get());
                 binaryData.incrementPointer(bytes.length);
                 
-                // Process "special" instructions that may generate a new start-off address or end the current
-                // disassembling thread
+                // Process "special" instructions that may generate a new start-off address
+                // or end the current disassembling thread
                 if(mnemonicMask.equals("RET") || !this.decoder.isValidAddress(binaryData.getPointer())) {
                     
-                    // A RET instruction was found or the end of memory was reached
+                    // A RET instruction was found or the end of binary data was reached
                     break;
                     
                 } else if(mnemonicMask.contains("CALL") || (mnemonicMask.contains("JP"))) {
                     
                     // Verify if the JP instruction is indexed by a register.
-                    // If this is the case, the resulting address of the jump is unknown
+                    // If this is the case, the resulting address of the jump is unavailable
                     if (INDEXED_JP_PREFIX.contains(opCode)) {
-                        this.log("Warning: Found indexed jump instruction at address 0x%X%n", instructionAddress);
-                        warning = true;
+                        this.warn("Warning: Found indexed jump instruction at address 0x%X%n", instructionAddress);
                         break;
                     }   
                     
@@ -252,17 +268,41 @@ public class Z80Disassembler implements Runnable {
                     
                 } else if (mnemonicMask.contains("JR") || mnemonicMask.contains("DJNZ")) {
                     
-                    // Evaluate the absolute address from relative jump and push  it to start-off list
+                    // Evaluate the absolute address from relative jump and push it to start-off list
                     int address = instructionAddress + (bytes[1] + 2);
                     this.pushStartAddress(address);
+                    
+                    // For unconditional relative jump, the current disassembling thread must be ended
+                    if (opCode.equals("18")) {
+                        break;
+                    }   
                 }   
                 
             } while(true);
-            
         }   
         
         // Post processing: add the data labels references
+        this.processDataLabels();
+        
+        this.systemOutAndLog("Disassembler process finished at %s%n", FileDateUtil.getCurrentTime());
+        if(this.hasWarnings) {
+            System.out.println("There are warnings. See log file for more information!");
+        }   
+        
+        // Process output files
+        this.outputProcessor.processOutputSourceFile(this.outputPath, this.decoder);
+        this.outputProcessor.processOutputListFile(this.listPath, this.decoder);
+    }   
+    
+    /**
+     * Post processing: add the data labels
+     */
+    private void processDataLabels() {
+        
+        // Post processing: add the data labels references
         List<Instruction> instructionsList = this.decoder.getInstructionsList();
+        BinaryData binaryData = this.decoder.getBinaryData();
+        
         int address = this.decoder.getStartAddress();
         Instruction instruction = instructionsList.get(address);
         
@@ -270,7 +310,7 @@ public class Z80Disassembler implements Runnable {
             
             Instruction nextInstruction = instructionsList.get(address+1);
             
-            if(!instruction.equals(Decoder.DB_BYTE) && nextInstruction.equals(Decoder.DB_BYTE)) {
+            if(!instruction.isDbByte() && nextInstruction.isDbByte()) {
                 this.outputProcessor.mapDataLabel(address+1);
             } else if (instruction.getMnemonicMask().contains("LD") && instruction.hasWordParameter()) {
                 
@@ -278,7 +318,7 @@ public class Z80Disassembler implements Runnable {
                 int labelAddress = (bytes[1] & 0xFF) | ((bytes[2] << 8) & 0xFFFF);
                 Instruction targetInstruction = instructionsList.get(labelAddress);
                 
-                if(this.decoder.isValidAddress(labelAddress) && targetInstruction.equals(Decoder.DB_BYTE)) {
+                if(this.decoder.isValidAddress(labelAddress) && targetInstruction.isDbByte()) {
                     this.outputProcessor.mapDataLabel(labelAddress);
                 }   
             }   
@@ -286,15 +326,6 @@ public class Z80Disassembler implements Runnable {
             instruction = nextInstruction;
             address++;
         }   
-        
-        this.systemOutAndLog("Disassembler process finished at %s%n", FileDateUtil.getCurrentTime());
-        if(warning) {
-            System.out.println("There are warnings. See log file for more information!");
-        }   
-        
-        // Process output files
-        this.outputProcessor.processOutputSourceFile(this.outputPath, this.decoder);
-        this.outputProcessor.processOutputListFile(this.listPath, this.decoder);
     }   
     
     /**
@@ -343,6 +374,7 @@ public class Z80Disassembler implements Runnable {
             this.outputProcessor.setTabSize(properties.getInteger(TAB_SIZE).orElse(4));
             this.outputProcessor.setCodeLabelPrefix(properties.getString(CODE_LABEL_PREFIX).orElse(""));
             this.outputProcessor.setDataLabelPrefix(properties.getString(DATA_LABEL_PREFIX).orElse(""));
+            StringUtil.setHexValueFormat(properties.getString(HEX_FORMAT).orElse("0%sH"));
             
             // Setup the user defined labels at given addresses
             for (String entry : properties.getListOf(LABEL)) {
@@ -389,15 +421,6 @@ public class Z80Disassembler implements Runnable {
     }   
     
     /**
-     * Get input stream resource for given file name.
-     * @param fileName name of the resource
-     * @return input stream resource
-     */
-    public InputStream getResourceAsStream(String fileName) {
-        return this.getClass().getResourceAsStream(fileName);
-    }   
-    
-    /**
      * Loads the Z80 instruction's data from file (binary and mnemonic representations).
      * 
      * @param fileName the instruction file name
@@ -406,7 +429,7 @@ public class Z80Disassembler implements Runnable {
      */
     public synchronized void loadInstructionsFromFile(String fileName)
             throws IOException, IllegalArgumentException {
-        InputStream stream = this.getResourceAsStream(fileName);
+        InputStream stream = this.getClass().getResourceAsStream(fileName);
     	this.loadInstructionsFromStream(stream);
     }   
     
@@ -427,7 +450,7 @@ public class Z80Disassembler implements Runnable {
         // InputStreamReader reads bytes and decodes them into characters using a specified charset
         try (BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream))) {
             
-            SystemOut.vprint("Loading Z80 instructions information from resource file...");
+            System.out.printf("Loading Z80 instructions information from resource file...");
             
             while ((line = bufferedReader.readLine()) != null) {
                 
@@ -453,14 +476,14 @@ public class Z80Disassembler implements Runnable {
                     instructionsCounter++;
                     
                 } else {
-                    SystemOut.vprintln("Error!");
+                    System.out.printf("Error!%n");
                     throw new IllegalArgumentException(
                         String.format("Error processing instruction \"%s\" at line %d%n", line, lineNumber)
                     );  
                 }   
             }   
             
-            SystemOut.vprintln("Ok");
+            System.out.printf("Ok%n");
             SystemOut.vprintf("Total of instructions read: %d\n", instructionsCounter);
             
         } catch(NullPointerException ioException) {

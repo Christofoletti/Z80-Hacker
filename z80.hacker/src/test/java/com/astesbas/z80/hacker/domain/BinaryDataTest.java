@@ -10,24 +10,24 @@ import junit.framework.TestCase;
 import junit.framework.TestSuite;
 
 /**
- * Memory tests.
+ * BinaryData tests.
  * 
  * @author Luciano M. Christofoletti
  *         luciano@christofoletti.com.br
  * @since 17/06/2017
  */
-public class MemoryTest extends TestCase {
+public class BinaryDataTest extends TestCase {
     
     private final byte[] tripleX = new byte[] {'X', 'X', 'X'};
     private final byte[] abc = new byte[] {'A', 'B', 'C'};
-    private final byte[] eom = new byte[] {'#', '$', '$'};
+    private final byte[] eom = new byte[] {'#', 0, 0};
     
     /**
      * Create the test case
      *
      * @param testName name of the test case
      */
-    public MemoryTest(String testName) {
+    public BinaryDataTest(String testName) {
         super(testName);
     }   
     
@@ -35,51 +35,50 @@ public class MemoryTest extends TestCase {
      * @return the suite of tests being tested
      */
     public static Test suite() {
-        return new TestSuite(MemoryTest.class);
+        return new TestSuite(BinaryDataTest.class);
     }   
     
     /**
-     * Tests the OpCode matches() methods.
+     * Tests the instructions matches() methods.
      * @throws URISyntaxException 
      * @throws IOException 
      * @throws FileNotFoundException 
      */
-    public void testMemoryLoadFromFile() throws URISyntaxException, FileNotFoundException, IOException {
+    public void testBinaryDataLoadFromFile() throws URISyntaxException, FileNotFoundException, IOException {
         
         // get binary file resource from classpath
         // other options is MemoryTest.class.getResource("/test.memory.bin");
-        java.net.URL filePath = BinaryData.class.getClassLoader().getResource("test.memory.bin");
+        java.net.URL filePath = BinaryData.class.getClassLoader().getResource("binary-test.bin");
         java.io.File binaryFile = new java.io.File(filePath.toURI());
         
         // load data from binary file
         BinaryData binaryData = BinaryData.fromFile(binaryFile);
         
-        // 
         assertEquals("Wrong byte at memory position 0x0000!", '$', binaryData.get(0));
         assertEquals("Wrong byte at memory position 0x4000!", 'A', binaryData.get(0x4000));
         assertEquals("Wrong byte at memory position 0xFFFF!", '#', binaryData.get(0xFFFF));
         assertTrue("Wrong byte sequence at memory position 0x8000!", Arrays.equals(this.tripleX, binaryData.getBytes(0x8000, 3)));
         
-        // test memory access using get and next
+        // test binary data access using get and next
         binaryData.setPointer(0xFFFF);
         assertEquals("Wrong byte at memory position 0xFFFF!", '#', binaryData.get());
         assertEquals("Wrong byte at memory position 0x0000!", '$', binaryData.next());
         
         binaryData.setPointer(0xFFFF);
-        //assertTrue("Wrong byte sequence at memory position 0xFFFF!", Arrays.equals(this.eom, binaryData.getBytes(0xFFFF, 3)));
+        assertTrue("Wrong byte sequence at memory position 0xFFFF!", Arrays.equals(this.eom, binaryData.getBytes(0xFFFF, 3)));
         
     }
     
     /**
-     * Tests the memory get() and getBytes() methods.
+     * Tests the binary data get() and getBytes() methods.
      * @throws URISyntaxException
      * @throws IOException 
      * @throws FileNotFoundException 
      */
-    public void testMemoryPartialLoadFromFile() throws URISyntaxException, FileNotFoundException, IOException {
+    public void testBinaryDataPartialLoadFromFile() throws URISyntaxException, FileNotFoundException, IOException {
         
         // get binary file resource from classpath
-        java.net.URL filePath = MemoryTest.class.getResource("/test.memory.bin");
+        java.net.URL filePath = BinaryDataTest.class.getResource("/binary-test.bin");
         java.io.File binaryFile = new java.io.File(filePath.toURI());
         
         // load the binary file into memory

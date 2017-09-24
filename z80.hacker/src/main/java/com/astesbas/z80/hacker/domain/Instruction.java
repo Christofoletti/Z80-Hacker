@@ -64,6 +64,12 @@ public class Instruction implements java.io.Serializable {
     /** Mask for byte parameter (relative jump/index displacement - same as byte parameter) */
     private static final String DISPLACEMENT_PARAM = "%%";
     
+    /** This is a placeholder for data bytes (to be output as db ##) */
+    public static final Instruction DB_BYTE = new Instruction("##", "db ##");
+    
+    /** This is a placeholder for bytes that are part of instructions (opcode or instruction's parameter) */
+    public static final Instruction PARAMTER = new Instruction("##", "[##]");
+    
     /**
      * OpCode class constructor. Must provide byte and mnemonic mask strings. 
      * @param byteMask
@@ -120,7 +126,6 @@ public class Instruction implements java.io.Serializable {
      * @return the number of bytes of this instruction
      */
     public int getSize() {
-        //return (this.byteMask.length() >> 1);
         return this.size;
     }   
     
@@ -185,11 +190,15 @@ public class Instruction implements java.io.Serializable {
                 mnemonic = String.format(this.mnemonicMask, data);
             } else {
                 if(label.isEmpty()) {
+                    
                     byte byteValue = bytes[this.displacementIndex];
                     mnemonic = String.format(this.mnemonicMask, Byte.toString(byteValue), data);
+                    
+                    // For byte values lower than 0, remove the plus sign from mnemonic
                     if(byteValue < 0) {
                         mnemonic = mnemonic.replace("+", "");
                     }   
+                    
                 } else {
                     mnemonic = String.format(this.mnemonicMask, label, data);
                 }   
@@ -229,6 +238,22 @@ public class Instruction implements java.io.Serializable {
         return this.pattern.matcher(bytesString.toUpperCase()).matches();
     }   
     
+    /**
+     * Verify if this instruction is a data byte value.
+     * @return true if this instruction is a data byte value.
+     */
+    public boolean isDbByte() {
+        return this.equals(DB_BYTE);
+    }   
+    
+    /**
+     * Verify if this instruction is a parameter byte from an instruction.
+     * @return true if this instruction is a parameter byte from an instruction
+     */
+    public boolean isParameter() {
+        return this.equals(PARAMTER);
+    }   
+    
     @Override
     public int hashCode() {
         return this.mnemonicMask.hashCode();
@@ -236,7 +261,7 @@ public class Instruction implements java.io.Serializable {
     
     @Override
     public boolean equals(Object obj) {
-        return (obj instanceof Instruction) && 
+        return (obj instanceof Instruction) &&
                this.byteMask.equals(((Instruction) obj).getByteMask()) &&
                this.mnemonicMask.equals(((Instruction) obj).getMnemonicMask());
     }   

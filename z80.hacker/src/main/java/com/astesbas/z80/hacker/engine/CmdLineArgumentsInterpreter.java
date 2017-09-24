@@ -1,8 +1,20 @@
 package com.astesbas.z80.hacker.engine;
 
+import static java.nio.file.StandardOpenOption.APPEND;
+import static java.nio.file.StandardOpenOption.CREATE;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashSet;
 import java.util.Set;
 
+import com.astesbas.z80.hacker.util.FileDateUtil;
 import com.astesbas.z80.hacker.util.SystemOut;
 
 /**
@@ -17,7 +29,7 @@ import com.astesbas.z80.hacker.util.SystemOut;
 public class CmdLineArgumentsInterpreter {
     
     /** The default project configuration file name */
-    public static final String DEFAULT_CONFIG_FILE = "./default.cfg";
+    public static final String DEFAULT_CONFIG_FILE = "default.cfg";
     
     private static final String[] HELP_MESSAGE = {
         "Usage: z80hacker [options...] [-p {config file}]",
@@ -83,26 +95,18 @@ public class CmdLineArgumentsInterpreter {
                         this.configFile = new java.io.File(arguments[++index]);
                     } catch (IndexOutOfBoundsException indexException) {
                         this.showErrorMessageAndExit("\nError: missing project configuration file name.");
-                    }
+                    }   
                     SystemOut.vprintf("Project configuration file \"%s\"%n", this.configFile.getPath());
                     break;
                     
                 case "-i":
                 case "--init":
-                    this.showErrorMessageAndExit("Feature not implemented yet!");
-                    // this.ddFile = new java.io.File(DEFAULT_DD_FILE_NAME);
-                    // String userDir = System.getProperty("user.dir");
-    
-                    // java.io.File source = new
-                    // java.io.File("H:\\work-temp\\file");
-                    // java.io.File dest = new
-                    // java.io.File(userDir+DEFAULT_DD_FILE_NAME);
-                    // try {
-                    // Files.copy(source, dest);
-                    // } catch (IOException e) {
-                    // e.printStackTrace();
-                    // }
-                    
+                    try {
+                        this.generateDefaultConfigFile(arguments[++index]);
+                    } catch (IndexOutOfBoundsException indexException) {
+                        this.generateDefaultConfigFile(DEFAULT_CONFIG_FILE);
+                    }   
+                    System.exit(0);
                     break;
                     
                 default:
@@ -120,7 +124,34 @@ public class CmdLineArgumentsInterpreter {
         }   
         
         if(!this.configFile.exists()) {
-            this.showErrorMessageAndExit("%nProject configuration file not found!");
+            this.showErrorMessageAndExit("Project configuration file not found!");
+        }   
+    }   
+    
+    private void generateDefaultConfigFile(String fileName) {
+        
+        InputStream inputStream = this.getClass().getResourceAsStream("/shrubbles.cfg");
+        String baseName= FileDateUtil.getBaseFileName(fileName);
+        Path outputPath = Paths.get(fileName);
+        String line;
+        
+        System.out.printf("Creating default project config file %s...", outputPath.getFileName());
+        
+        try (BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream))) {
+            
+            try (BufferedWriter writer = Files.newBufferedWriter(outputPath, CREATE, APPEND)) {
+                while ((line = bufferedReader.readLine()) != null) {
+                    writer.write(line.replace("shrubbles", baseName));
+                    writer.newLine();
+                }   
+            }   
+            
+            System.out.println("Ok");
+            
+        } catch (IOException ioException) {
+            System.err.println("Error!");
+            System.err.format("Error creating default config file: %s%n", ioException.getMessage());
+            System.exit(-1);
         }   
     }   
     

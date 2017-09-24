@@ -11,7 +11,6 @@ import java.util.Arrays;
 import java.util.Optional;
 
 import com.astesbas.z80.hacker.util.ConfigFileProperties;
-import com.astesbas.z80.hacker.util.SystemOut;
 
 /**
  * 8-bit/64Kb binary data manager. This is a very simplified manager for binary data.
@@ -260,7 +259,7 @@ public class BinaryData {
             lenght = start + fileSize;
         }   
         
-        SystemOut.vprintf("Reading binary file: %s...", binaryFile.getName());
+        System.out.printf("Reading binary file: %s...", binaryFile.getName());
         
         try (java.io.DataInputStream dis = new java.io.DataInputStream(new java.io.FileInputStream(binaryFile))) {
             
@@ -268,12 +267,12 @@ public class BinaryData {
             BinaryData binaryData = new BinaryData(data, start, lenght);
             binaryData.setBinaryFileName(binaryFile.getName());
             
-            SystemOut.vprintf("Ok%n");
+            System.out.printf("Ok%n");
             
             return binaryData;
             
         } catch (IOException ioException) {
-            SystemOut.vprintf("Error!%n");
+            System.out.printf("Error!%n");
             throw ioException;
         }   
     }   

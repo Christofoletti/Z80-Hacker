@@ -24,7 +24,7 @@ public class ConfigFileProperties extends MultiMap<String, String> {
     public static enum ConfigKey {
         BINARY_FILE, BINARY_START, BINARY_END,
         OUTPUT_FILE, LIST_FILE, LOG_FILE,
-        DB_ALIGN, TAB_SIZE, CODE_LABEL_PREFIX, DATA_LABEL_PREFIX,
+        DB_ALIGN, TAB_SIZE, CODE_LABEL_PREFIX, DATA_LABEL_PREFIX, HEX_FORMAT,
         START_ADDRESS, END_ADDRESS, START_OFF, LABEL, EQU;
     }   
     

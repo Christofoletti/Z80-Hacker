@@ -178,7 +178,7 @@ public class StringUtil {
         if(value < 0) {
             return Byte.toString(value);
         } else {
-            return "+"+Byte.toString(value);
+            return String.format("+%s", Byte.toString(value));
         }
     }   
     

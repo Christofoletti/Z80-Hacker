@@ -1,6 +1,3 @@
-/**
- * 
- */
 package com.astesbas.z80.hacker.engine;
 
 import static java.nio.file.StandardOpenOption.APPEND;
@@ -25,11 +22,12 @@ import com.astesbas.z80.hacker.util.FileDateUtil;
 import com.astesbas.z80.hacker.util.StringUtil;
 
 /**
- * Output source and list file processor.
+ * Output assembly source and list file processor.
  * This is intended to be used by the Z80 Disassembler engine.
  * 
  * @author Luciano M. Christofoletti
  *         luciano@christofoletti.com.br
+ * @version 1.0
  * @since 13/sep/2017
  */
 public class OutputProcessor {
@@ -51,23 +49,6 @@ public class OutputProcessor {
     
     /** Data label prefix: used as prefix for data byte (db) sections */
     private String dataLabelPrefix = "";
-    
-    /**
-     * 
-     * @param binaryData
-     */
-    //protected OutputProcessor(BinaryData binaryData) {
-        
-//        this.binaryData = binaryData;
-        
-//        // Initializes the instruction's list with bytes from memory.
-//        // For disassembling purposes, a byte is output to the source file as a "db ##".
-//        // During the disassembling process, a "db instruction" may be replaced by a reference to 
-//        // Z80 instruction or a data byte (the "parameter" part of an instruction)
-//        for(int i = BinaryData.START_ADDRESS; i <= BinaryData.END_ADDRESS; i++) {
-//            this.instructionsList.add(i, DB_BYTE);
-//        }   
-//    }   
     
     /**
      * Maps a label to be used as reference in the disassembled code.
@@ -156,19 +137,6 @@ public class OutputProcessor {
     }   
     
     /**
-     * 
-     * @param address
-     * @return
-     */
-    public String getLabel(Integer address) {
-        String label =  this.labelsMap.get(address);
-        if(label == null) {
-            label = StringUtil.intToHexString(address);
-        }   
-        return label;
-    }   
-    
-    /**
      * Set the data align size (maximum of 64).
      * 
      * @param dbAlign
@@ -230,8 +198,8 @@ public class OutputProcessor {
             int startAddress = decoder.getStartAddress();
             int endAddress = decoder.getEndAddress();
             writer.newLine();
-            writer.write(StringUtil.spaces(this.tabSize));
-            writer.write(String.format("ORG %s%n%n", StringUtil.intToHexString(startAddress)));
+            writer.write(tab);
+            writer.write(String.format("ORG %s%n", StringUtil.intToHexString(startAddress)));
             
             // writes all instructions from disassembled memory
             for(int address = startAddress; address <= endAddress;) {
@@ -247,24 +215,23 @@ public class OutputProcessor {
                     writer.write(String.format("%n%s:%n", label));
                 }   
                 
-                // process instruction opcode
-                if(!instruction.equals(Decoder.DB_BYTE)) {
+                if(!instruction.isDbByte()) {
                     
-                    // output byte sequence and mnemonic of current instruction
+                    String mnemonicString = instruction.translate(bytes);
+                    
+                    // Process relative jump instructions
                     if(mnemonicMask.contains("JR") || mnemonicMask.contains("DJNZ")) {
                         
+                        // Evaluate the near (relative) jump address 
                         int nearAddress = address + (bytes[1] + 2);
                         String nearLabel = this.labelsMap.get(nearAddress);
                         if(nearLabel == null) {
                             nearLabel = StringUtil.intToHexString(nearAddress);
                         }   
                         
-                        writer.write(tab);
-                        writer.write(String.format("%s%n", instruction.translate(bytes, nearLabel)));  
+                        mnemonicString = instruction.translate(bytes, nearLabel);
                         
-                    } else if(mnemonicMask.contains("CALL") || 
-                             (mnemonicMask.contains("JP") && instruction.getSize() > 2) ||
-                             (mnemonicMask.contains("LD") && instruction.hasWordParameter())) {
+                    } else if(instruction.hasWordParameter()) {
                         
                         // Evaluate the two bytes address (for prefixed instructions, the address bytes are
                         // shifted one byte ahead)
@@ -282,11 +249,10 @@ public class OutputProcessor {
                             }   
                         }   
                         
-                        writer.write(String.format("%s%s%n", tab, instruction.translate(bytes, farLabel)));  
-                        
-                    } else {
-                        writer.write(String.format("%s%s%n", tab, instruction.translate(bytes)));  
+                        mnemonicString = instruction.translate(bytes, farLabel);
                     }   
+                    
+                    writer.write(String.format("%s%s%n", tab, mnemonicString));
                     
                     // update the current memory address
                     address += instruction.getSize();
@@ -357,7 +323,7 @@ public class OutputProcessor {
                 Instruction instruction = instructionsList.get(address);
                 
                 // If the current instruction is not a byte value, output the opcode mnemonic 
-                if(!instruction.equals(Decoder.DB_BYTE)) {
+                if(!instruction.isDbByte()) {
                     
                     // Output byte sequence that defines the current instruction
                     byte[] bytes = binaryData.getBytes(address, instruction.getSize());

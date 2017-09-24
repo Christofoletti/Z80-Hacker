@@ -1,5 +1,7 @@
 :: Z80 Hacker execution script for windows
-:: Author: Luciano M. Christofoletti - luciano@christofoletti.com.br
+:: Version 0.2
+:: Author: Luciano M. Christofoletti
+:: luciano@christofoletti.com.br
 :: 26/06/2017
 
 @echo off
@@ -13,7 +15,7 @@ setlocal
 @set DRIVE=%~d0
 @set CURRENT_DIR=%~dp0
 
-@"%JAVA_HOME%\bin\java" %JAVA_OPTS% -jar %CURRENT_DIR%\%JAR_NAME% %1 %2 %3 %4 %5 %6
+@"%JAVA_HOME%\bin\java" %JAVA_OPTS% -jar "%CURRENT_DIR%\%JAR_NAME%" %1 %2 %3 %4 %5 %6
 @if errorlevel 2 goto noJRE
 @goto end
 

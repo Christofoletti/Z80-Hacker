@@ -38,7 +38,7 @@
                 <directory>src/main/resources</directory>
                 <filtering>false</filtering>
                 <includes>
-                    <include>test.memory.bin</include>
+                    <include>binary-test.bin</include>
                     <include>*.dat</include>
                 </includes>
             </resource>
@@ -46,7 +46,7 @@
                 <directory>src/main/scripts</directory>
                 <filtering>false</filtering>
                 <includes>
-                    <include>default.cfg</include>
+                    <include>shrubbles.cfg</include>
                 </includes>
             </resource>
         </resources>

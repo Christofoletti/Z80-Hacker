@@ -22,12 +22,6 @@ public class Decoder {
     /** The list of disassembled instructions (decoded instructions) */
     private final List<Instruction> instructionsList;
     
-    /** This is a placeholder for data bytes (to be output as db ##) */
-    public static final Instruction DB_BYTE = new Instruction("##", "db ##");
-    
-    /** This is a placeholder for bytes that are part of instructions (opcode or instruction's parameter) */
-    public static final Instruction PARAMTER = new Instruction("##", "[##]");
-    
     /** The lower bound address to be disassembled - addresses smaller than this will not be processed */
     private int startAddress = BinaryData.START_ADDRESS;
     
@@ -35,7 +29,8 @@ public class Decoder {
     private int endAddress = BinaryData.END_ADDRESS;
     
     /**
-     * 
+     * The binary data decoder.
+     * This class holds the binary data and the corresponding disassembled instructions.
      * @param binaryData
      */
     public Decoder(BinaryData binaryData) {
@@ -48,7 +43,7 @@ public class Decoder {
         // During the disassembling process, a "db instruction" may be replaced by a reference to 
         // Z80 instruction or a data byte (the "parameter" part of an instruction)
         for(int i = BinaryData.START_ADDRESS; i <= BinaryData.END_ADDRESS; i++) {
-            this.instructionsList.add(i, DB_BYTE);
+            this.instructionsList.add(i, Instruction.DB_BYTE);
         }   
     }   
     
@@ -110,7 +105,7 @@ public class Decoder {
      * @return true if the byte at the given address is a data byte
      */
     public boolean isDbByte(int address) {
-        return this.instructionsList.get(address).equals(Decoder.DB_BYTE);
+        return this.instructionsList.get(address).isDbByte();
     }   
     
     /**
@@ -119,7 +114,7 @@ public class Decoder {
      * @return true if the byte at the given address is part of an instruction
      */
     public boolean isParameterByte(int address) {
-        return this.instructionsList.get(address).equals(Decoder.PARAMTER);
+        return this.instructionsList.get(address).isParameter();
     }   
     
     /**
@@ -139,7 +134,7 @@ public class Decoder {
             
             // Set the other bytes of the instruction as parameters (if applicable)
             for(int k = 1; k < instructionSize; k++) {
-                this.instructionsList.set(address+k, PARAMTER);
+                this.instructionsList.set(address+k, Instruction.PARAMTER);
             }   
             
         } else {
@@ -147,7 +142,7 @@ public class Decoder {
                 String.format("Could not set instruction %s at 0x%04X!" + instruction.getMnemonicMask(), address)
             );  
         }   
-    }   
+    }      
     
     /**
      * Verify if the bytes in the range [address, address+length] is available
