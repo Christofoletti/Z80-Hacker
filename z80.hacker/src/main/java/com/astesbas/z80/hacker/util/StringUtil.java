@@ -8,7 +8,7 @@ import java.util.Objects;
  * @author Luciano M. Christofoletti
  *         luciano@christofoletti.com.br
  *         
- * @version 1.0
+ * @version 1.1
  * @since 30/jun/2017
  */
 public class StringUtil {
@@ -67,15 +67,15 @@ public class StringUtil {
             // Search the string for a comment char
             for(int index = 0; index < text.length(); index++) {
                 char currentChar = text.charAt(index);
-                if(!insideSingleQuote && currentChar == '"') {
-                    insideQuote ^= true;
-                } else if(!insideQuote && currentChar == '\'') {
-                    insideSingleQuote ^= true;
-                } else if(currentChar == comment) {
+                if(currentChar == comment) {
                     // verify if the comment char outside any quotation
                     if(!insideQuote && !insideSingleQuote) {
                         return StringUtil.clean(text.substring(0, index));
                     }   
+                } else if(!insideSingleQuote && currentChar == '"') {
+                    insideQuote ^= true;
+                } else if(!insideQuote && currentChar == '\'') {
+                    insideSingleQuote ^= true;
                 }   
             }   
         }   

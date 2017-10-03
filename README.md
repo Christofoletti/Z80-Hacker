@@ -1,5 +1,5 @@
 # Z80-Hacker
-Z80 Hacker Disassembler Tool version 0.1
+Z80 Hacker Disassembler Tool version 1.0
 
 Copyright (c) 2017<br />
 Luciano M. Christofoletti<br />

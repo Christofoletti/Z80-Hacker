@@ -12,7 +12,7 @@ import java.util.Optional;
  * @author Luciano M. Christofoletti
  *         luciano@christofoletti.com.br
  *         
- * @version 1.0
+ * @version 1.1
  * @since 24/jun/2017
  */
 public class ConfigFileProperties extends MultiMap<String, String> {
@@ -23,9 +23,9 @@ public class ConfigFileProperties extends MultiMap<String, String> {
     /** The predefined keys for the configuration file */
     public static enum ConfigKey {
         BINARY_FILE, BINARY_START, BINARY_END,
-        OUTPUT_FILE, LIST_FILE, LOG_FILE,
+        OUTPUT_FILE, LIST_FILE, LOG_FILE, INSTRUCTIONS_FILE,
         DB_ALIGN, TAB_SIZE, CODE_LABEL_PREFIX, DATA_LABEL_PREFIX, HEX_FORMAT,
-        START_ADDRESS, END_ADDRESS, START_OFF, LABEL, EQU;
+        UNDOCUMENTED_INSTRUCTIONS, START_ADDRESS, END_ADDRESS, START_OFF, LABEL, EQU;
     }   
     
     /**

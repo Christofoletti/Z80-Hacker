@@ -1,15 +1,15 @@
 :: Z80 Hacker execution script for windows
-:: Version 0.2
+:: Version @APP_VERSION@
 :: Author: Luciano M. Christofoletti
-:: luciano@christofoletti.com.br
-:: 26/06/2017
+::         luciano@christofoletti.com.br
+:: Date: 26/06/2017
 
 @echo off
 setlocal
 
 :: set java options and jar name
 @set JAVA_OPTS=-Xms256m -Xss256k
-@set JAR_NAME=z80.hacker-0.1.jar
+@set JAR_NAME=@JAR_FILENAME@
 
 :: get current drive and directory
 @set DRIVE=%~d0

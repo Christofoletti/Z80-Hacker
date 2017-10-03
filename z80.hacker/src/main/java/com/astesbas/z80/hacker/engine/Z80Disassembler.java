@@ -62,7 +62,7 @@ public class Z80Disassembler implements Runnable {
     private final Decoder decoder;
     
     /** The output processor. Generates assembly source code and list files */
-    private final OutputProcessor outputProcessor = new OutputProcessor();
+    private final OutputProcessor outputProcessor;
     
     /** List of prefixes of JP instructions that uses pointers to get the address of the jump (e.g. JP (IX)) */
     private static final List<String> INDEXED_JP_PREFIX = Arrays.asList("DD", "E9", "FD");
@@ -70,12 +70,16 @@ public class Z80Disassembler implements Runnable {
     /** The warning flag */
     private boolean hasWarnings = false;
     
+    /** The Z80 instructions file */
+    private static final String Z80_INSTRUCTIONS_FILE_NAME = "/z80-instructions-extended.dat";
+    
     /**
      * Z80 decoder constructor.
      * The binary data to be disassembled must be provided and cannot be changed.
      */
     public Z80Disassembler(BinaryData binaryData) {
         this.decoder = new Decoder(binaryData);
+        this.outputProcessor = new OutputProcessor();
     }   
     
     /**
@@ -153,7 +157,7 @@ public class Z80Disassembler implements Runnable {
     private void warn(String format, Object... args) {
         this.hasWarnings = true;
         this.log(format, args);
-    }
+    }   
     
     /**
      * Output text to log file and default output stream.
@@ -369,28 +373,48 @@ public class Z80Disassembler implements Runnable {
                 System.exit(-1);
             }   
             
-            // Setup the formatting output properties
+            // Set the formatting output properties
             this.outputProcessor.setDbAlign(properties.getInteger(DB_ALIGN).orElse(16));
             this.outputProcessor.setTabSize(properties.getInteger(TAB_SIZE).orElse(4));
             this.outputProcessor.setCodeLabelPrefix(properties.getString(CODE_LABEL_PREFIX).orElse(""));
             this.outputProcessor.setDataLabelPrefix(properties.getString(DATA_LABEL_PREFIX).orElse(""));
             StringUtil.setHexValueFormat(properties.getString(HEX_FORMAT).orElse("0%sH"));
             
-            // Setup the user defined labels at given addresses
+            // Set the user defined labels at given addresses
             for (String entry : properties.getListOf(LABEL)) {
-                String[] split = StringUtil.splitInTwo(entry, " ");
-                this.outputProcessor.mapLabel(Integer.decode(split[1].trim()), split[0].trim());
+                String[] split = StringUtil.splitInTwo(entry.replaceAll("\t", " "), " ");
+                if(split.length > 1) {
+                    this.outputProcessor.mapLabel(Integer.decode(split[1].trim()), split[0].trim());
+                } else {
+                    throw new IllegalArgumentException(String.format("Invalid label entry: [%s]%n", entry));
+                }   
             }   
             
-            // Setup the user defined equs
+            // Set the user defined equs
             for (String entry : properties.getListOf(EQU)) {
-                String[] split = StringUtil.splitInTwo(entry, " ");
-                this.outputProcessor.mapEqu(split[0].trim(), split[1].trim());
+                String[] split = StringUtil.splitInTwo(entry.replaceAll("\t", " "), " ");
+                if(split.length > 1) {
+                    this.outputProcessor.mapEqu(split[0].trim(), split[1].trim());
+                } else {
+                    throw new IllegalArgumentException(String.format("Invalid equ entry: [%s]%n", entry));
+                }   
             }   
             
-            // Setup disassembler limits
+            // Set disassembler limits
             this.decoder.setStartAddress(properties.getAddress(START_ADDRESS).orElse(BinaryData.START_ADDRESS));
             this.decoder.setEndAddress(properties.getAddress(END_ADDRESS).orElse(BinaryData.END_ADDRESS));
+            
+            // Set the status of the flag to output source using undocumented Z80 instructions
+            boolean loadUndocumentedInstructions = properties.getBoolean(UNDOCUMENTED_INSTRUCTIONS).orElse(false);
+            
+            // Load the Z80 instructions set from resource file
+            try {
+                this.loadInstructionsFromFile(Z80_INSTRUCTIONS_FILE_NAME, loadUndocumentedInstructions);
+            } catch (IllegalArgumentException | IOException exception) {
+                System.err.printf("Error reading data from %s file!%n\t%s%n",
+                    Z80_INSTRUCTIONS_FILE_NAME, exception.getMessage());
+                System.exit(-1);
+            }   
             
         } catch (IllegalAccessException | IllegalArgumentException exception) {
             System.err.printf(
@@ -399,7 +423,7 @@ public class Z80Disassembler implements Runnable {
             System.exit(-1);
         }   
         
-        // Setup the starting point addresses
+        // Set the starting point addresses
         for (String address : properties.getListOf(START_OFF)) {
             try {
                 this.pushStartAddress(Integer.decode(address));
@@ -410,37 +434,31 @@ public class Z80Disassembler implements Runnable {
                 System.exit(-1);
             }   
         }   
-        
-        // load the Z80 instructions set from resource file
-        try {
-            this.loadInstructionsFromFile("/z80-instructions.dat");
-        } catch (IllegalArgumentException | IOException exception) {
-            System.err.printf("Error reading data from z80-instructions.dat file!%n\t%s%n", exception.getMessage());
-            System.exit(-1);
-        }   
     }   
     
     /**
      * Loads the Z80 instruction's data from file (binary and mnemonic representations).
      * 
      * @param fileName the instruction file name
+     * @param loadUndocumented flag to indicate the loading of undocumented Z80 instructions
      * @throws IOException if some reading error occurs
      * @throws IllegalArgumentException if the input file has some invalid data
      */
-    public synchronized void loadInstructionsFromFile(String fileName)
+    private synchronized void loadInstructionsFromFile(String fileName, boolean loadUndocumented)
             throws IOException, IllegalArgumentException {
         InputStream stream = this.getClass().getResourceAsStream(fileName);
-    	this.loadInstructionsFromStream(stream);
+    	this.loadInstructionsFromStream(stream, loadUndocumented);
     }   
     
     /**
      * Loads the Z80 instructions data from input stream (patterns and attributes).
      * 
      * @param inputStream the input stream
+     * @param loadUndocumented flag to indicate the loading of undocumented Z80 instructions
      * @throws IOException if some reading error occurs
      * @throws IllegalArgumentException if the input file has some invalid data
      */
-    private synchronized void loadInstructionsFromStream(InputStream inputStream)
+    private synchronized void loadInstructionsFromStream(InputStream inputStream, boolean loadUndocumented)
             throws IOException, IllegalArgumentException {
         
         String line;
@@ -457,7 +475,7 @@ public class Z80Disassembler implements Runnable {
                 lineNumber++;
                 
                 // Discard comment lines and empty lines
-                line = StringUtil.clean(line, ';');
+                line = StringUtil.clean(line, '\'');
                 if (line.isEmpty()) {
                     continue;
                 }   
@@ -472,8 +490,10 @@ public class Z80Disassembler implements Runnable {
                     
                     // Create the instruction and map it according to the prefix class
                     Instruction instruction = new Instruction(byteMask, mnemonicMask);
-                    this.instructionsMap.map(instruction.getPrefixClass(), instruction);
-                    instructionsCounter++;
+                    if(!(instruction.isUndocumented() && !loadUndocumented)) {
+                        this.instructionsMap.map(instruction.getPrefixClass(), instruction);
+                        instructionsCounter++;
+                    }   
                     
                 } else {
                     System.out.printf("Error!%n");

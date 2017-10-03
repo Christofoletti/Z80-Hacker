@@ -52,6 +52,9 @@ public class Instruction implements java.io.Serializable {
     /** The size of the instruction (in bytes) */
     private final int size;
     
+    /** Flag that indicates that this is an undocumented z80 instruction */
+    private final boolean isUndocumented;
+    
     /** The opcode pattern validator */
     private final java.util.regex.Pattern pattern;
     
@@ -77,21 +80,22 @@ public class Instruction implements java.io.Serializable {
      */
     public Instruction(String byteMask, String mnemonicMask) {
         
-        // set the indexes of displacement and data parameters
+        // Set the indexes of displacement and data parameters
         this.displacementIndex = byteMask.indexOf(DISPLACEMENT_PARAM) >> 1;
         this.dataIndex = byteMask.indexOf(BYTE_PARAM) >> 1;
         
-        // stores the opcode and the associated mnemonic mask 
-        this.byteMask = byteMask.toUpperCase();
-        this.mnemonicMask = mnemonicMask.replaceAll("####|##|%%", "%s");
+        // Stores the opcode and the associated mnemonic mask 
+        this.byteMask = byteMask.toUpperCase().trim();
+        this.mnemonicMask = mnemonicMask.replaceAll("####|##|%%", "%s").replace("*", "").trim();
         
-        // sets the pattern validator using regular expression
+        // Set the pattern validator using regular expression
         String opCodeRegexMatcher = this.byteMask.replaceAll("##|%%", "[A-F0-9]{2}");
         this.pattern = java.util.regex.Pattern.compile(opCodeRegexMatcher);
         
-        // set the opcode prefix for this opcode instance
+        // Set the general properties of the instruction
         this.prefixClass = PrefixClass.of(this.byteMask.substring(0, 2));
         this.size = (this.byteMask.length() >> 1);
+        this.isUndocumented = mnemonicMask.contains("*");
     }   
     
     /**
@@ -146,6 +150,14 @@ public class Instruction implements java.io.Serializable {
     }   
     
     /**
+     * Get the status that indicates if this instruction is officially documented.
+     * @return true if the instruction is not officially documented
+     */
+    public boolean isUndocumented() {
+        return this.isUndocumented;
+    }   
+    
+    /**
      * Translates a given sequence of bytes (byte code) into a mnemonic representation.
      * If a non-empty string label is provided, then it will replace the word or displacement byte in the
      * resulting mnemonic.
@@ -181,14 +193,20 @@ public class Instruction implements java.io.Serializable {
         } else {
             
             // Get the data parameter (if available).
-            // NOTE: the dataIndex in general is greater than zero. (exception for db xx, which is not an instruction)
+            // NOTE: the dataIndex in general is greater than zero.
+            // (exception for db xx, which is not an instruction)
             String data = (this.dataIndex >= 0) ? StringUtil.byteToHexString(bytes[this.dataIndex]):"";
             
             // Set the mnemonic according to the parameters available.
             // Note that the data string may be empty.
             if (this.displacementIndex < 0) {
+                
+                // For instructions without displacement, the mnemonic may contain only
+                // the data parameter.
                 mnemonic = String.format(this.mnemonicMask, data);
+                
             } else {
+                
                 if(label.isEmpty()) {
                     
                     byte byteValue = bytes[this.displacementIndex];
@@ -202,6 +220,12 @@ public class Instruction implements java.io.Serializable {
                 } else {
                     mnemonic = String.format(this.mnemonicMask, label, data);
                 }   
+                
+                // For extended instructions, the resulting output is a sequence of
+                // bytes with a code commentary about the instruction that is being executed
+                if(this.isUndocumented) {
+                    mnemonic = mnemonic + " ; byte sequence: " + StringUtil.bytesToHex(bytes, ", ");
+                }
             }   
         }   
         
@@ -259,11 +283,22 @@ public class Instruction implements java.io.Serializable {
         return this.mnemonicMask.hashCode();
     }   
     
+    /**
+     * NOTE: This equals implementation allows comparing a byte sequence or a string
+     * with an instruction. This is very unusual, but is implemented this way here to
+     * facilitate getting a matching instruction when running the disassembling process.
+     * The other solution is using a wrapper that implements this method.
+    */
     @Override
-    public boolean equals(Object obj) {
-        return (obj instanceof Instruction) &&
-               this.byteMask.equals(((Instruction) obj).getByteMask()) &&
-               this.mnemonicMask.equals(((Instruction) obj).getMnemonicMask());
+    public boolean equals(Object object) {
+        
+        if(object instanceof Instruction) {
+            Instruction instruction = (Instruction) object;
+            return this.byteMask.equals(instruction.getByteMask()) &&
+                   this.mnemonicMask.equals(instruction.getMnemonicMask());
+        }   
+        
+        return false;
     }   
     
     /**
